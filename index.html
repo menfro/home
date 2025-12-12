@@ -16,7 +16,6 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        /* Custom tweaks for RTL inputs */
         input[type="number"]::-webkit-inner-spin-button,
         input[type="number"]::-webkit-outer-spin-button {
             -webkit-appearance: none;
@@ -30,189 +29,47 @@
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
 
-        // --- Icons Implementation (Inlined for Stability) ---
+        // --- Icons ---
         const IconBase = ({ children, color = "currentColor", size = 24, className = "", ...props }) => (
-            <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width={size} 
-                height={size} 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke={color} 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                className={className}
-                {...props}
-            >
-                {children}
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
         );
+        const Calculator = (props) => <IconBase {...props}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></IconBase>;
+        const Home = (props) => <IconBase {...props}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></IconBase>;
+        const TrendingUp = (props) => <IconBase {...props}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></IconBase>;
+        const PieChart = (props) => <IconBase {...props}><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></IconBase>;
+        const Info = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></IconBase>;
+        const CheckCircle2 = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></IconBase>;
+        const Building = (props) => <IconBase {...props}><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M16 18h.01"/></IconBase>;
+        const ArrowRightLeft = (props) => <IconBase {...props}><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></IconBase>;
+        const Briefcase = (props) => <IconBase {...props}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></IconBase>;
+        const DollarSign = (props) => <IconBase {...props}><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></IconBase>;
+        const Scale = (props) => <IconBase {...props}><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></IconBase>;
+        const Settings = (props) => <IconBase {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconBase>;
+        const AlertTriangle = (props) => <IconBase {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></IconBase>;
+        const RefreshCcw = (props) => <IconBase {...props}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></IconBase>;
+        const Edit3 = (props) => <IconBase {...props}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></IconBase>;
+        const Link = (props) => <IconBase {...props}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></IconBase>;
+        const Save = (props) => <IconBase {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconBase>;
+        const RotateCcw = (props) => <IconBase {...props}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></IconBase>;
+        const Plus = (props) => <IconBase {...props}><path d="M5 12h14"/><path d="M12 5v14"/></IconBase>;
+        const Trash2 = (props) => <IconBase {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></IconBase>;
+        const X = (props) => <IconBase {...props}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>;
 
-        const Calculator = (props) => (
-            <IconBase {...props}>
-                <rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/>
-            </IconBase>
-        );
-        const Home = (props) => (
-            <IconBase {...props}>
-                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-            </IconBase>
-        );
-        const TrendingUp = (props) => (
-            <IconBase {...props}>
-                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-            </IconBase>
-        );
-        const PieChart = (props) => (
-            <IconBase {...props}>
-                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>
-            </IconBase>
-        );
-        const Info = (props) => (
-            <IconBase {...props}>
-                <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
-            </IconBase>
-        );
-        const CheckCircle2 = (props) => (
-            <IconBase {...props}>
-                <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
-            </IconBase>
-        );
-        const Building = (props) => (
-            <IconBase {...props}>
-                <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M16 18h.01"/>
-            </IconBase>
-        );
-        const ArrowRightLeft = (props) => (
-            <IconBase {...props}>
-                <path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>
-            </IconBase>
-        );
-        const Briefcase = (props) => (
-            <IconBase {...props}>
-                <rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-            </IconBase>
-        );
-        const DollarSign = (props) => (
-            <IconBase {...props}>
-                <line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-            </IconBase>
-        );
-        const Scale = (props) => (
-            <IconBase {...props}>
-                <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>
-            </IconBase>
-        );
-        const Settings = (props) => (
-            <IconBase {...props}>
-                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>
-            </IconBase>
-        );
-        const AlertTriangle = (props) => (
-            <IconBase {...props}>
-                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/>
-            </IconBase>
-        );
-        const RefreshCcw = (props) => (
-            <IconBase {...props}>
-                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>
-            </IconBase>
-        );
-        const Edit3 = (props) => (
-            <IconBase {...props}>
-                <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-            </IconBase>
-        );
-        const Link = (props) => (
-            <IconBase {...props}>
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-            </IconBase>
-        );
-        const Save = (props) => (
-            <IconBase {...props}>
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
-            </IconBase>
-        );
-        const RotateCcw = (props) => (
-            <IconBase {...props}>
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
-            </IconBase>
-        );
-        const Plus = (props) => (
-            <IconBase {...props}>
-                <path d="M5 12h14"/><path d="M12 5v14"/>
-            </IconBase>
-        );
-        const Trash2 = (props) => (
-            <IconBase {...props}>
-                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>
-            </IconBase>
-        );
-        const X = (props) => (
-            <IconBase {...props}>
-                <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
-            </IconBase>
-        );
-
-        // --- Constants & Defaults ---
+        // --- Defaults ---
         const DEFAULTS = {
-            propertyPrice: 5500000,
-            equity: 3500000, 
-            currentRent: 9000,
-            analysisYears: 10, 
-            mortgageTerm: 25, 
-            marketReturn: 7.0, 
-            propertyAppreciation: 3.0, 
-            rentInflation: 3.0,
-            mortgageInterest: 4.8, 
-            maintenanceCost: 0.5, 
-            purchaseTaxRate: 0.0, 
-            buyingMiscRate: 0.5, 
-            brokerageRate: 1.5, 
-            sellingExpensesRate: 1.5, 
-            capitalGainsTax: 25.0, 
-            vatRate: 17.0, 
+            propertyPrice: 5500000, equity: 3500000, currentRent: 9000, analysisYears: 10, mortgageTerm: 25, 
+            marketReturn: 7.0, propertyAppreciation: 3.0, rentInflation: 3.0, mortgageInterest: 4.8, 
+            maintenanceCost: 0.5, purchaseTaxRate: 0.0, buyingMiscRate: 0.5, brokerageRate: 1.5, 
+            sellingExpensesRate: 1.5, capitalGainsTax: 25.0, vatRate: 17.0, 
         };
-
         const TRACK_COLORS = ['bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-green-500', 'bg-pink-500', 'bg-teal-500'];
-
         const DEFAULT_MIXES = [
-            { 
-                id: 1,
-                name: "סולידי ויציב", 
-                risk: "נמוך",
-                desc: "החזר קבוע, חשיפה מינימלית לשינויים.",
-                tracks: [
-                    { id: 't1', name: 'פריים', percent: 33, rate: 6.0, color: 'bg-blue-500' },
-                    { id: 't2', name: 'קל"צ', percent: 67, rate: 4.8, color: 'bg-purple-500' }
-                ]
-            },
-            { 
-                id: 2,
-                name: "המסלול המאוזן", 
-                risk: "בינוני",
-                desc: "שילוב בין יציבות לבין ניצול ריביות משתנות.",
-                tracks: [
-                    { id: 't1', name: 'פריים', percent: 33, rate: 6.0, color: 'bg-blue-500' },
-                    { id: 't2', name: 'קל"צ', percent: 34, rate: 4.8, color: 'bg-purple-500' },
-                    { id: 't3', name: 'משתנה', percent: 33, rate: 3.5, color: 'bg-orange-500' }
-                ]
-            },
-            { 
-                id: 3,
-                name: "צמוד מדד (זול התחלתית)", 
-                risk: "גבוה",
-                desc: "החזר התחלתי נמוך, מסוכן בעליית אינפלציה.",
-                tracks: [
-                    { id: 't1', name: 'פריים', percent: 33, rate: 6.0, color: 'bg-blue-500' },
-                    { id: 't2', name: 'קל"צ', percent: 17, rate: 4.8, color: 'bg-purple-500' },
-                    { id: 't3', name: 'משתנה', percent: 50, rate: 3.2, color: 'bg-orange-500' }
-                ]
-            }
+            { id: 1, name: "סולידי ויציב", risk: "נמוך", desc: "החזר קבוע, חשיפה מינימלית לשינויים.", tracks: [{ id: 't1', name: 'פריים', percent: 33, rate: 6.0, color: 'bg-blue-500' }, { id: 't2', name: 'קל"צ', percent: 67, rate: 4.8, color: 'bg-purple-500' }] },
+            { id: 2, name: "המסלול המאוזן", risk: "בינוני", desc: "שילוב בין יציבות לבין ניצול ריביות.", tracks: [{ id: 't1', name: 'פריים', percent: 33, rate: 6.0, color: 'bg-blue-500' }, { id: 't2', name: 'קל"צ', percent: 34, rate: 4.8, color: 'bg-purple-500' }, { id: 't3', name: 'משתנה', percent: 33, rate: 3.5, color: 'bg-orange-500' }] },
+            { id: 3, name: "צמוד מדד (זול)", risk: "גבוה", desc: "החזר התחלתי נמוך, מסוכן.", tracks: [{ id: 't1', name: 'פריים', percent: 33, rate: 6.0, color: 'bg-blue-500' }, { id: 't2', name: 'קל"צ', percent: 17, rate: 4.8, color: 'bg-purple-500' }, { id: 't3', name: 'משתנה', percent: 50, rate: 3.2, color: 'bg-orange-500' }] }
         ];
 
-        // --- Helper Functions ---
+        // --- Logic ---
         const calculatePMT = (principal, annualRate, years) => {
             if (principal <= 0) return 0;
             if (annualRate === 0) return principal / (years * 12);
@@ -220,130 +77,56 @@
             const numberOfPayments = years * 12;
             return (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -numberOfPayments));
         };
-
         const calculateRemainingBalance = (principal, annualRate, totalYears, monthsPassed) => {
             if (principal <= 0) return 0;
             const totalPayments = totalYears * 12;
             if (monthsPassed >= totalPayments) return 0;
-            if (annualRate === 0) {
-                const paid = (principal / totalPayments) * monthsPassed;
-                return Math.max(0, principal - paid);
-            }
+            if (annualRate === 0) { const paid = (principal / totalPayments) * monthsPassed; return Math.max(0, principal - paid); }
             const monthlyRate = annualRate / 100 / 12;
             return principal * ( (Math.pow(1 + monthlyRate, totalPayments) - Math.pow(1 + monthlyRate, monthsPassed)) / (Math.pow(1 + monthlyRate, totalPayments) - 1) );
         };
-
         const formatILS = (num) => {
             if (isNaN(num)) return "₪0";
             return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(num);
         };
-
         const calculateLoanDetails = (inputs) => {
             const purchaseTaxAmount = inputs.propertyPrice * (inputs.purchaseTaxRate / 100);
             const buyingMiscAmount = inputs.propertyPrice * (inputs.buyingMiscRate / 100);
             const brokerageAmount = inputs.propertyPrice * (inputs.brokerageRate / 100) * (1 + inputs.vatRate / 100);
-            
             const totalAcquisitionCost = inputs.propertyPrice + purchaseTaxAmount + buyingMiscAmount + brokerageAmount;
             const equityUsed = Math.min(inputs.equity, totalAcquisitionCost);
             const loanAmount = Math.max(0, totalAcquisitionCost - equityUsed);
-            
             const equityAvailableForProperty = Math.max(0, equityUsed - (purchaseTaxAmount + buyingMiscAmount + brokerageAmount));
             const loanUsedForProperty = Math.max(0, inputs.propertyPrice - equityAvailableForProperty);
             const remainingLiquidEquity = Math.max(0, inputs.equity - totalAcquisitionCost);
-
-            return {
-                purchaseTaxAmount,
-                buyingMiscAmount,
-                brokerageAmount,
-                totalAcquisitionCost,
-                equityUsed,
-                loanAmount,
-                loanUsedForProperty,
-                remainingLiquidEquity
-            };
+            return { purchaseTaxAmount, buyingMiscAmount, brokerageAmount, totalAcquisitionCost, equityUsed, loanAmount, loanUsedForProperty, remainingLiquidEquity };
         };
 
         // --- Components ---
-
-        // Define Tooltip explicitly before InputField to avoid reference errors
         const Tooltip = ({ text }) => (
             <div className="group relative inline-block ml-2 cursor-help text-gray-400 hover:text-blue-500">
                 <Info size={16} />
-                <div className="opacity-0 w-48 bg-gray-800 text-white text-xs rounded p-2 absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg border border-gray-700 z-50 pointer-events-none">
+                <div className="opacity-0 w-48 bg-gray-800 text-white text-xs rounded p-2 absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg border border-gray-700">
                     {text}
                 </div>
             </div>
         );
 
-        const InputField = ({
-            label,
-            value,
-            onChange,
-            suffix = "",
-            tooltip = "",
-            disabled = false,
-            className = "",
-            type = "text",
-            inputMode = "decimal",
-        }) => {
+        const InputField = ({ label, value, onChange, suffix = "", tooltip = "", disabled = false, className = "", type = "text", inputMode = "decimal" }) => {
             const [isFocused, setIsFocused] = useState(false);
             const [inputValue, setInputValue] = useState(value ? value.toString() : '');
-
-            useEffect(() => {
-                if (!isFocused && value !== undefined && value !== null) {
-                    setInputValue(Number(value).toLocaleString());
-                }
-            }, [value, isFocused]);
-
-            const handleFocus = () => {
-                setIsFocused(true);
-                setInputValue(value !== undefined && value !== null ? value.toString() : '');
-            };
-
-            const handleBlur = () => {
-                setIsFocused(false);
-                if (inputValue !== '' && inputValue !== '-') {
-                    setInputValue(value !== undefined && value !== null ? Number(value).toLocaleString() : '');
-                }
-            };
-
+            useEffect(() => { if (!isFocused && value !== undefined && value !== null) setInputValue(Number(value).toLocaleString()); }, [value, isFocused]);
             const handleChange = (e) => {
-                const rawInput = e.target.value;
-                setInputValue(rawInput); 
-                const cleanNumber = rawInput.replace(/,/g, '');
-                if (cleanNumber === '-') return; 
-                
-                if (cleanNumber === '') {
-                    onChange(0);
-                } else if (!isNaN(cleanNumber)) {
-                    onChange(parseFloat(cleanNumber));
-                }
+                const raw = e.target.value; setInputValue(raw);
+                const clean = raw.replace(/,/g, ''); if (clean === '-') return;
+                if (clean === '') onChange(0); else if (!isNaN(clean)) onChange(parseFloat(clean));
             };
-
             return (
                 <div className={`mb-4 ${className}`}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                        {label}
-                        {tooltip && <Tooltip text={tooltip} />}
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">{label}{tooltip && <Tooltip text={tooltip} />}</label>
                     <div className="relative rounded-md shadow-sm">
-                        <input
-                            type={type}
-                            inputMode={inputMode}
-                            value={inputValue}
-                            onChange={handleChange}
-                            onFocus={handleFocus}
-                            onBlur={handleBlur}
-                            disabled={disabled}
-                            className={`block w-full p-3 sm:p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-base sm:text-sm ${
-                                suffix ? "pl-10" : ""
-                            } ${disabled ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""}`}
-                        />
-                        {suffix && (
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <span className="text-gray-500 sm:text-sm">{suffix}</span>
-                            </div>
-                        )}
+                        <input type={type} inputMode={inputMode} value={inputValue} onChange={handleChange} onFocus={() => {setIsFocused(true); setInputValue(value?.toString());}} onBlur={() => {setIsFocused(false); if(inputValue!=='' && inputValue!=='-') setInputValue(Number(value).toLocaleString());}} disabled={disabled} className={`block w-full p-3 sm:p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-base sm:text-sm ${suffix ? "pl-10" : ""} ${disabled ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""}`} />
+                        {suffix && <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><span className="text-gray-500 sm:text-sm">{suffix}</span></div>}
                     </div>
                 </div>
             );
@@ -352,89 +135,36 @@
         const ResultCard = ({ title, value, subtext, icon: Icon, isWinner, bottomContent, headerColor = "text-gray-700", alertContent }) => (
             <div className={`p-6 rounded-xl border-2 transition-all flex flex-col justify-between h-full ${isWinner ? 'border-green-500 bg-green-50 shadow-lg' : 'border-gray-200 bg-white'}`}>
                 <div>
-                    <div className="flex items-center justify-between mb-2">
-                        <h3 className={`font-bold ${headerColor}`}>{title}</h3>
-                        <Icon className={isWinner ? 'text-green-600' : 'text-gray-400'} size={24} />
-                    </div>
+                    <div className="flex items-center justify-between mb-2"><h3 className={`font-bold ${headerColor}`}>{title}</h3><Icon className={isWinner ? 'text-green-600' : 'text-gray-400'} size={24} /></div>
                     <div className="text-3xl font-bold text-gray-900 mb-1">{value}</div>
                     <p className="text-sm text-gray-500 mb-3">{subtext}</p>
-                    
-                    {alertContent && (
-                        <div className="mb-3 text-xs bg-red-50 border border-red-100 text-red-600 p-2 rounded flex items-start">
-                            <AlertTriangle size={14} className="mr-1 ml-1 flex-shrink-0 mt-0.5"/>
-                            {alertContent}
-                        </div>
-                    )}
+                    {alertContent && <div className="mb-3 text-xs bg-red-50 border border-red-100 text-red-600 p-2 rounded flex items-start"><AlertTriangle size={14} className="mr-1 ml-1 flex-shrink-0 mt-0.5"/>{alertContent}</div>}
                 </div>
-                
-                <div className="mt-auto">
-                    {bottomContent}
-                    {isWinner && (
-                        <div className="mt-4 text-green-700 text-sm font-bold flex items-center bg-green-100 p-2 rounded">
-                            <CheckCircle2 size={16} className="mr-1 ml-1" /> המסלול המשתלם כלכלית
-                        </div>
-                    )}
-                </div>
+                <div className="mt-auto">{bottomContent}{isWinner && <div className="mt-4 text-green-700 text-sm font-bold flex items-center bg-green-100 p-2 rounded"><CheckCircle2 size={16} className="mr-1 ml-1" /> המסלול המשתלם כלכלית</div>}</div>
             </div>
         );
 
         const MiniInput = ({ value, onChange, label, suffix = "", className = "" }) => {
             const [isFocused, setIsFocused] = useState(false);
             const [localVal, setLocalVal] = useState(value !== undefined ? value.toString() : '');
-
-            useEffect(() => {
-                if (!isFocused && value !== undefined) {
-                    setLocalVal(Number(value).toLocaleString());
-                }
-            }, [value, isFocused]);
-
-            const handleFocus = () => {
-                setIsFocused(true);
-                setLocalVal(value !== undefined ? value.toString() : '');
-            };
-
-            const handleBlur = () => {
-                setIsFocused(false);
-                if (localVal !== '' && localVal !== '-') {
-                    setLocalVal(Number(value).toLocaleString());
-                }
-            };
-
+            useEffect(() => { if (!isFocused && value !== undefined) setLocalVal(Number(value).toLocaleString()); }, [value, isFocused]);
             const handleChange = (e) => {
-                const val = e.target.value;
-                setLocalVal(val);
-                const cleanNumber = val.replace(/,/g, '');
-                
-                if (cleanNumber !== '' && !isNaN(cleanNumber)) {
-                    let num = parseFloat(cleanNumber);
-                    if (num < 0) num = 0; 
-                    if (suffix === '%' && num > 100) num = 100;
-                    onChange(num);
-                } else if (cleanNumber === '') {
-                    onChange(0);
-                }
+                const raw = e.target.value; setLocalVal(raw);
+                const clean = raw.replace(/,/g, ''); if (clean === '') { onChange(0); return; }
+                if (!isNaN(clean)) { let num = parseFloat(clean); if (num < 0) num = 0; if (suffix === '%' && num > 100) num = 100; onChange(num); }
             };
-
             return (
                 <div className="flex flex-col items-center w-full">
                     {label && <span className="text-[10px] text-gray-400 mb-0.5">{label}</span>}
                     <div className="relative w-full">
-                        <input 
-                            type="text"
-                            inputMode="decimal"
-                            value={localVal}
-                            onChange={handleChange}
-                            onFocus={handleFocus}
-                            onBlur={handleBlur}
-                            className={`w-full h-9 p-1 ${suffix ? 'pl-5' : 'pl-1'} text-center text-sm border border-gray-200 rounded bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none ${className}`}
-                        />
+                        <input type="text" inputMode="decimal" value={localVal} onChange={handleChange} onFocus={() => {setIsFocused(true); setLocalVal(value?.toString());}} onBlur={() => {setIsFocused(false); if(localVal!=='') setLocalVal(Number(value).toLocaleString());}} className={`w-full h-9 p-1 ${suffix ? 'pl-5' : 'pl-1'} text-center text-sm border border-gray-200 rounded bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none ${className}`} />
                         {suffix && <span className="absolute left-1.5 top-2.5 text-xs text-gray-400 pointer-events-none">{suffix}</span>}
                     </div>
                 </div>
             );
         };
 
-        // --- App Component ---
+        // --- App ---
         function App() {
             const [activeTab, setActiveTab] = useState(1);
             const [showAdvanced, setShowAdvanced] = useState(false);
@@ -457,7 +187,6 @@
             const results = useMemo(() => {
                 const { loanAmount, purchaseTaxAmount, buyingMiscAmount, brokerageAmount, remainingLiquidEquity } = loanDetails;
                 const monthlyMortgage = calculatePMT(loanAmount, inputs.mortgageInterest, inputs.mortgageTerm);
-                
                 let investmentPortfolio = inputs.equity; 
                 let totalInvestedPrincipal = inputs.equity; 
                 let currentMonthlyRent = inputs.currentRent;
@@ -477,30 +206,19 @@
                     const buyerMonthlyOutflow = currentMonthMortgage + monthlyMaintenance;
                     const renterMonthlyOutflow = currentMonthlyRent;
                     const difference = buyerMonthlyOutflow - renterMonthlyOutflow;
-                    
                     investmentPortfolio *= (1 + inputs.marketReturn / 100 / 12);
-                    if (difference > 0) {
-                        investmentPortfolio += difference;
-                        totalInvestedPrincipal += difference; 
-                    } else {
-                        investmentPortfolio += difference; 
-                    }
-                    if (investmentPortfolio <= 0) {
-                        investmentPortfolio = 0; 
-                        if (portfolioHitZeroMonth === null) portfolioHitZeroMonth = i;
-                    }
+                    if (difference > 0) { investmentPortfolio += difference; totalInvestedPrincipal += difference; } else { investmentPortfolio += difference; }
+                    if (investmentPortfolio <= 0) { investmentPortfolio = 0; if (portfolioHitZeroMonth === null) portfolioHitZeroMonth = i; }
                     if (i % 12 === 0) currentMonthlyRent *= (1 + inputs.rentInflation / 100);
                 }
 
                 const futurePropertyValue = inputs.propertyPrice * Math.pow(1 + inputs.propertyAppreciation / 100, inputs.analysisYears);
                 const remainingLoanBalance = calculateRemainingBalance(loanAmount, inputs.mortgageInterest, inputs.mortgageTerm, totalMonths);
                 const sellingExpenses = futurePropertyValue * (inputs.sellingExpensesRate / 100);
-                
                 let buyerSidePortfolio = remainingLiquidEquity * Math.pow(1 + inputs.marketReturn/100, inputs.analysisYears);
                 const buyerSideGain = Math.max(0, buyerSidePortfolio - remainingLiquidEquity);
                 const buyerSideTax = buyerSideGain * (inputs.capitalGainsTax / 100);
                 buyerSidePortfolio -= buyerSideTax;
-
                 const buyNetWorth = futurePropertyValue - remainingLoanBalance - sellingExpenses + buyerSidePortfolio;
                 const portfolioGain = Math.max(0, investmentPortfolio - totalInvestedPrincipal);
                 const capitalGainsTax = portfolioGain * (inputs.capitalGainsTax / 100);
@@ -515,8 +233,7 @@
                     totalSunkBuy, totalSunkRent: totalRentPaid,
                     breakdownBuy: { interest: totalInterestPaid, maintenance: totalMaintenancePaid, purchaseTax: purchaseTaxAmount, buyingMisc: buyingMiscAmount, brokerage: brokerageAmount, sellingExpenses },
                     breakdownRent: { rent: totalRentPaid },
-                    capitalGainsTax, portfolioHitZeroMonth, sellingExpenses,
-                    purchaseTaxAmount, buyingMiscAmount, brokerageAmount
+                    capitalGainsTax, portfolioHitZeroMonth, sellingExpenses, purchaseTaxAmount, buyingMiscAmount, brokerageAmount
                 };
             }, [inputs, loanDetails]);
 
@@ -556,11 +273,7 @@
                     return { ...mix, tracks: newTracks };
                 }));
             };
-            const syncMixData = () => {
-                setIsMixCustomized(false);
-                setMixTabLoanAmount(loanDetails.loanAmount);
-                setMixTabTerm(inputs.mortgageTerm);
-            };
+            const syncMixData = () => { setIsMixCustomized(false); setMixTabLoanAmount(loanDetails.loanAmount); setMixTabTerm(inputs.mortgageTerm); };
             const resetMixTypes = () => setUserMixes(DEFAULT_MIXES);
             const applyMixToSimulator = () => {
                 const totalCost = loanDetails.totalAcquisitionCost;
@@ -570,9 +283,7 @@
                 setActiveTab(2); 
             };
             const renderProgressBar = (val1, val2) => {
-                const minVal = Math.min(val1, val2);
-                let offset = 0;
-                if (minVal < 0) offset = Math.abs(minVal) * 1.2; 
+                const minVal = Math.min(val1, val2); let offset = 0; if (minVal < 0) offset = Math.abs(minVal) * 1.2; 
                 const adjV1 = val1 + offset, adjV2 = val2 + offset, total = adjV1 + adjV2;
                 if (total <= 0) return null;
                 const p1 = (adjV1 / total) * 100, p2 = (adjV2 / total) * 100;
@@ -590,16 +301,12 @@
                         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
                             <div className="flex items-center space-x-2 space-x-reverse">
                                 <Building className="text-blue-600" size={28} />
-                                <div className="mr-2">
-                                    <h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1>
-                                    <span className="text-xs text-gray-500">מהדורה מקצועית v11</span>
-                                </div>
+                                <div className="mr-2"><h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1><span className="text-xs text-gray-500">מהדורה מקצועית v12</span></div>
                             </div>
                             <nav className="flex space-x-1 space-x-reverse bg-gray-100 p-1 rounded-lg">
-                                {[ { id: 1, label: 'סימולטור', icon: Home }, { id: 2, label: 'מינוף', icon: TrendingUp }, { id: 3, label: 'תמהיל', icon: PieChart } ].map((tab) => (
+                                {[{ id: 1, label: 'סימולטור', icon: Home }, { id: 2, label: 'מינוף', icon: TrendingUp }, { id: 3, label: 'תמהיל', icon: PieChart }].map((tab) => (
                                     <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                                        <tab.icon size={16} className="ml-2" />
-                                        <span className="hidden sm:inline">{tab.label}</span>
+                                        <tab.icon size={16} className="ml-2" /><span className="hidden sm:inline">{tab.label}</span>
                                     </button>
                                 ))}
                             </nav>
@@ -652,10 +359,7 @@
                                     </div>
                                     {viewMode === 'netWorth' ? (
                                         <div className="animate-in fade-in zoom-in-95 duration-300">
-                                            <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6">
-                                                <h2 className="text-xl font-bold text-blue-900 mb-1">כמה כסף יהיה לכם ביד בעוד {inputs.analysisYears} שנים?</h2>
-                                                <p className="text-sm text-blue-700 opacity-80">חישוב שווי נכסים בניכוי כל ההתחייבויות, המיסים וההוצאות (בהנחת מימוש מלא).</p>
-                                            </div>
+                                            <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6"><h2 className="text-xl font-bold text-blue-900 mb-1">כמה כסף יהיה לכם ביד בעוד {inputs.analysisYears} שנים?</h2><p className="text-sm text-blue-700 opacity-80">חישוב שווי נכסים בניכוי כל ההתחייבויות, המיסים וההוצאות (בהנחת מימוש מלא).</p></div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <ResultCard title="מסלול קניה" value={formatILS(results.buyNetWorth)} subtext="שווי הנכס נטו (בניכוי חוב והוצאות מכירה)" isWinner={results.buyNetWorth > results.rentNetWorth} icon={Home} bottomContent={<div className="text-xs space-y-1 text-gray-500 pt-3 border-t"><div className="flex justify-between"><span>שווי נכס עתידי:</span> <span>{formatILS(results.futurePropertyValue)}</span></div><div className="flex justify-between text-red-400"><span>יתרת משכנתא:</span> <span>-{formatILS(results.remainingLoanBalance)}</span></div><div className="flex justify-between text-red-400"><span>הוצאות מכירה/שבח:</span> <span>-{formatILS(results.sellingExpenses)}</span></div></div>} />
                                                 <ResultCard title="מסלול שכירות" value={formatILS(results.rentNetWorth)} subtext="שווי תיק ההשקעות נטו (לאחר מס)" isWinner={results.rentNetWorth > results.buyNetWorth} icon={TrendingUp} alertContent={results.portfolioHitZeroMonth ? `אזהרה: בחודש ${results.portfolioHitZeroMonth} תיק ההשקעות התרוקן. המודל מניח הזרמת הון חיצוני להמשך תשלום השכירות.` : null} bottomContent={<div className="text-xs space-y-1 text-gray-500 pt-3 border-t"><div className="flex justify-between"><span>סך התיק ברוטו:</span> <span>{formatILS(results.rentNetWorth + results.capitalGainsTax)}</span></div><div className="flex justify-between text-red-400"><span>מס רווחי הון:</span> <span>-{formatILS(results.capitalGainsTax)}</span></div></div>} />
@@ -726,14 +430,10 @@
                                     {userMixes.map((mix) => {
                                         const loan = mixTabLoanAmount;
                                         const term = mixTabTerm;
-                                        let totalPayment = 0;
-                                        let weightedInterest = 0;
-                                        let totalPercent = 0;
+                                        let totalPayment = 0; let weightedInterest = 0; let totalPercent = 0;
                                         const trackElements = mix.tracks.map(track => {
                                             const pmt = calculatePMT(loan * (track.percent/100), track.rate, term);
-                                            totalPayment += pmt;
-                                            totalPercent += track.percent;
-                                            weightedInterest += (track.percent * track.rate);
+                                            totalPayment += pmt; totalPercent += track.percent; weightedInterest += (track.percent * track.rate);
                                             const amount = (loan * track.percent) / 100;
                                             return { ...track, pmt, amount };
                                         });
@@ -746,29 +446,22 @@
                                                     <h3 className="font-bold text-lg text-gray-800">{mix.name}</h3>
                                                     {isInvalid ? (<button onClick={() => normalizeMix(mix.id)} className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600 font-bold flex items-center hover:bg-red-200 transition-colors"><RefreshCcw size={12} className="ml-1"/> נרמל {totalPercent}%</button>) : (<span className={`text-xs px-2 py-1 rounded-full flex items-center ${mix.risk === 'נמוך' ? 'bg-green-100 text-green-700' : mix.risk === 'בינוני' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}><Edit3 size={10} className="ml-1 opacity-50"/> סיכון {mix.risk}</span>)}
                                                 </div>
-                                                <div className="flex justify-between items-center mt-2 px-4 text-[10px] text-gray-400 border-b border-gray-100 pb-1">
-                                                    <div className="flex-1 text-right">שם המסלול</div>
-                                                    <div className="flex space-x-1 sm:space-x-2 space-x-reverse w-auto justify-end">
-                                                        <div className="w-20 sm:w-24 text-center">סכום</div>
-                                                        <div className="w-12 sm:w-14 text-center">%</div>
-                                                        <div className="w-12 sm:w-14 text-center">ריבית</div>
-                                                        <div className="w-6"></div> 
-                                                    </div>
-                                                </div>
-                                                <div className="p-4 space-y-4 flex-grow pt-2">
+                                                <div className="p-4 space-y-4 flex-grow">
                                                     <p className="text-sm text-gray-500 mb-2">{mix.desc}</p>
                                                     <div className="space-y-3">
                                                         {trackElements.map((track) => (
-                                                            <div key={track.id} className={`flex justify-between items-center p-2 rounded-lg relative group ${track.color.replace('bg-', 'bg-opacity-10 bg-')}`}>
-                                                                <div className="flex items-center flex-1 min-w-0 ml-2"> 
-                                                                    <span className={`w-2 h-2 rounded-full ${track.color} ml-2 flex-shrink-0`}></span>
-                                                                    <input type="text" value={track.name} onChange={(e) => handleTrackChange(mix.id, track.id, 'name', e.target.value)} className="bg-transparent border-b border-transparent focus:border-gray-300 outline-none w-full text-sm font-semibold text-gray-700 min-w-0" />
+                                                            <div key={track.id} className={`p-3 rounded-xl border border-gray-100/50 ${track.color.replace('bg-', 'bg-opacity-5 bg-')}`}>
+                                                                <div className="flex justify-between items-center mb-2">
+                                                                    <div className="flex items-center flex-1">
+                                                                        <span className={`w-2.5 h-2.5 rounded-full ${track.color} ml-2 shadow-sm`}></span>
+                                                                        <input type="text" value={track.name} onChange={(e) => handleTrackChange(mix.id, track.id, 'name', e.target.value)} className="font-bold text-gray-700 bg-transparent outline-none w-full text-sm focus:border-b focus:border-blue-300 transition-all px-1" />
+                                                                    </div>
+                                                                    <button onClick={() => removeTrack(mix.id, track.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1"><Trash2 size={14} /></button>
                                                                 </div>
-                                                                <div className="flex space-x-1 sm:space-x-2 space-x-reverse items-center flex-shrink-0"> 
-                                                                    <MiniInput value={Math.round(track.amount)} className="w-20 sm:w-24" onChange={(v) => handleTrackAmountChange(mix.id, track.id, v)} />
-                                                                    <MiniInput value={track.percent} className="w-12 sm:w-14" onChange={(v) => handleTrackChange(mix.id, track.id, 'percent', v)} />
-                                                                    <MiniInput value={track.rate} className="w-12 sm:w-14" onChange={(v) => handleTrackChange(mix.id, track.id, 'rate', v)} />
-                                                                    <button onClick={() => removeTrack(mix.id, track.id)} className="text-gray-400 hover:text-red-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 w-6 flex justify-center"> <Trash2 size={14} /> </button>
+                                                                <div className="flex space-x-2 space-x-reverse">
+                                                                    <div className="flex-1"><MiniInput label="ריבית" value={track.rate} suffix="%" className="w-full" onChange={(v) => handleTrackChange(mix.id, track.id, 'rate', v)} /></div>
+                                                                    <div className="flex-1"><MiniInput label="% תמהיל" value={track.percent} suffix="%" className="w-full" onChange={(v) => handleTrackChange(mix.id, track.id, 'percent', v)} /></div>
+                                                                    <div className="flex-[1.5]"><MiniInput label="סכום" value={Math.round(track.amount)} suffix="₪" className="w-full" onChange={(v) => handleTrackAmountChange(mix.id, track.id, v)} /></div>
                                                                 </div>
                                                             </div>
                                                         ))}
