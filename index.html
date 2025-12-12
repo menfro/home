@@ -292,13 +292,19 @@
             const buyMonthly = results.monthlyMortgage + maintMonthlyNow;
             const rentMonthly = inputs.currentRent;
 
-            const net = Math.max(1, inputs.netMonthlyIncome || 0); 
+            // --- KEY CHANGE: Include Portfolio Yield in Income ---
+            const netSalary = Math.max(1, inputs.netMonthlyIncome || 0); 
+            // Calculate monthly passive income from liquid portfolio (pre-tax approx, or use net if conservative)
+            // We use simple annual yield / 12. 
             const liquidTotal = (inputs.liquidPortfolio || 0) + (loanDetails.remainingLiquidEquity || 0);
             const monthlyPassiveIncome = liquidTotal * (inputs.marketReturn / 100 / 12);
-            const totalMonthlyIncome = net + monthlyPassiveIncome;
+            
+            // Effective Total Monthly Income for DTI purposes
+            const totalMonthlyIncome = netSalary + monthlyPassiveIncome;
 
-            const dsrBuy = (buyMonthly / totalMonthlyIncome) * 100;
-            const dsrRent = (rentMonthly / totalMonthlyIncome) * 100;
+            // Recalculate DTI with Total Income
+            const dsrBuy = totalMonthlyIncome > 0 ? (buyMonthly / totalMonthlyIncome) * 100 : 999;
+            const dsrRent = totalMonthlyIncome > 0 ? (rentMonthly / totalMonthlyIncome) * 100 : 999;
 
             const deltaMonthly = buyMonthly - rentMonthly; 
             const runwayMonths = deltaMonthly > 0 ? (liquidTotal / deltaMonthly) : Infinity;
@@ -306,88 +312,72 @@
             const stressedLiquid = liquidTotal * 0.75;
             const stressedMortgage = calculatePMT(results.loanAmount, inputs.mortgageInterest + 1.5, inputs.mortgageTerm);
             const stressedBuyMonthly = stressedMortgage + maintMonthlyNow;
-            const stressedDSR = (stressedBuyMonthly / totalMonthlyIncome) * 100;
+            
+            // Stressed DTI (assuming passive income might also drop? let's keep income stable for simplicity or drop it too)
+            // Let's drop passive income by 25% for stress test
+            const stressedPassiveIncome = monthlyPassiveIncome * 0.75;
+            const stressedTotalIncome = netSalary + stressedPassiveIncome;
+            const stressedDSR = stressedTotalIncome > 0 ? (stressedBuyMonthly / stressedTotalIncome) * 100 : 999;
 
-            const scoreDSR = dsrBuy <= 25 ? 'green' : dsrBuy <= 33 ? 'yellow' : 'red';
+            const scoreDSR = dsrBuy <= 25 ? 'green' : dsrBuy <= 35 ? 'yellow' : 'red'; // Slightly relaxed due to asset backing
             let scoreRunway = 'green';
             if (deltaMonthly > 0) {
-                scoreRunway = runwayMonths >= 36 ? 'green' : runwayMonths >= 18 ? 'yellow' : 'red';
+                // If you have huge assets, runway matters less if it's > 5 years
+                scoreRunway = runwayMonths >= 60 ? 'green' : runwayMonths >= 24 ? 'yellow' : 'red';
             }
 
             const monthlyPremium = inputs.analysisYears > 0 ? results.diffNetWorth / (inputs.analysisYears * 12) : 0;
             const rentWins = results.rentNetWorth > results.buyNetWorth;
 
             const reds = [scoreDSR, scoreRunway].filter(x => x === 'red').length;
+            
             const conditions = [];
-            if (scoreDSR !== 'green') { conditions.push(`להוריד יחס החזר נטו בקנייה מתחת ל-25% (כרגע: ${formatPct(dsrBuy)}).`); }
-            if (deltaMonthly > 0 && scoreRunway !== 'green') { conditions.push(`להגדיל כרית נזילות שתכסה לפחות 36 חודשי "דלתא תזרים" (כרגע: ${Math.floor(runwayMonths)} חודשים).`); }
-            if (rentWins) { conditions.push(`אם תמצא עסקה שתקטין את "פרמיית הבעלות" (כרגע כ-${formatILS(monthlyPremium)} לחודש).`); } 
-            else { conditions.push(`אם תנאי השוק ישתנו והשכירות תהיה זולה משמעותית מהקנייה בתזרים.`); }
+            if (scoreDSR !== 'green') { conditions.push(`להוריד יחס החזר (כולל הכנסה מהתיק) מתחת ל-25% (כרגע: ${formatPct(dsrBuy)}).`); }
+            if (deltaMonthly > 0 && scoreRunway !== 'green') { conditions.push(`להגדיל כרית נזילות שתכסה לפחות 24-36 חודשי "דלתא תזרים".`); }
+            
+            // New Condition about Portfolio
+            if (monthlyPassiveIncome > 2000) {
+                conditions.push(`שים לב: התיק שלך מייצר ${formatILS(monthlyPassiveIncome)} בחודש. זה מאפשר לך לקחת יותר סיכון במשכנתא.`);
+            }
 
             const tonePack = {
-                soft: { title: 'אם זה היה חבר שלי - בגישה רגועה', openerRent: 'אני לא הייתי ממהר לקנות עכשיו. אתה לא מפסיד "חיים", אתה קונה זמן וגמישות.', openerBuy: 'אם אתה רוצה לקנות - זה יכול להיות הגיוני. אבל רק אם שומרים על גמישות ומקטינים סיכון תזרים.' },
-                sharp: { title: 'אם זה היה חבר שלי - האמת הישירה', openerRent: 'עם המספרים האלה, קנייה עכשיו היא החלטה שמקטינה לך חופש. הייתי בוחר לשכור ולהשקיע.', openerBuy: 'יש כאן יתרון כלכלי לקנייה, אבל אל תתבלבל - בלי שליטה בתזרים זה עלול להפוך לנטל.' },
-                hard: { title: 'אם זה היה חבר שלי - בלי פילטרים', openerRent: 'אל תקנה לחץ. אתה יכול להרשות לעצמך דירה - אבל אתה לא חייב להרשות לעצמך סיכון.', openerBuy: 'אתה יכול לקנות - אבל אם אתה לא עומד בספים, אתה קונה לעצמך שנים של מתח.' }
+                soft: { title: 'אם זה היה חבר שלי - בגישה רגועה', openerRent: 'עם גב כלכלי כזה, אין לחץ לקנות. התיק עובד בשבילך.', openerBuy: 'יש לך גב חזק מהתיק, אז הקנייה בטוחה יחסית גם אם היא יקרה.' },
+                sharp: { title: 'אם זה היה חבר שלי - האמת הישירה', openerRent: 'התיק שלך הוא מכונת כסף. למה לקבור אותו בקירות? תמשיך לשכור.', openerBuy: 'אתה קונה כי בא לך, לא כי צריך. התיק שלך משלם את המשכנתא, אז תהנה.' },
+                hard: { title: 'אם זה היה חבר שלי - בלי פילטרים', openerRent: 'אל תהרוג את האווזה שמטילה ביצי זהב (התיק שלך) בשביל 4 קירות.', openerBuy: 'תקנה. התיק מחזיק אותך. מקסימום תמכור חלק מהמניות.' }
             }[tone];
 
             let verdictKey = 'balanced';
             if (reds >= 1 && rentWins) verdictKey = 'rent';
-            else if (reds >= 2) verdictKey = 'rent';
             else if (!rentWins && reds === 0) verdictKey = 'buy';
             else verdictKey = rentWins ? 'rent' : 'conditional';
 
             const oneLiners = {
-                rent: 'בשורה התחתונה: הייתי ממשיך לשכור ולהשקיע, ואז בודק מחדש כשמשתנה משהו מהותי.',
-                buy: 'בשורה התחתונה: הייתי קונה - כי זה מגדיל הון עתידי וגם נשאר בשליטה תזרימית.',
-                conditional: 'בשורה התחתונה: קנייה אפשרית, אבל רק אם אתה עומד בתנאים ברורים של תזרים ונזילות.',
-                balanced: 'בשורה התחתונה: אין כאן ניצחון מוחץ - ההחלטה צריכה להישען יותר על סיכון וגמישות מאשר על "מי מנצח בשקל".'
+                rent: 'בשורה התחתונה: השכירות והתיק מנצחים. תשמור על הנזילות.',
+                buy: 'בשורה התחתונה: יש לך אור ירוק לקנות. התיק והשכר תומכים בזה.',
+                conditional: 'בשורה התחתונה: אפשר לקנות, אבל בזהירות. אל תבנה רק על התיק.',
+                balanced: 'בשורה התחתונה: תיקו. ההחלטה היא רגשית נטו - התיק נותן לך את הפריבילגיה לבחור.'
             };
 
             const reasons = [];
-            reasons.push(`יחס החזר נטו (כולל תשואה מהתיק): ${formatPct(dsrBuy)} (שכירות: ${formatPct(dsrRent)}).`);
-            reasons.push(deltaMonthly > 0 ? `הקנייה יקרה יותר בתזרים בכ-${formatILS(deltaMonthly)} לחודש - כרית הנזילות מכסה בערך ${Math.floor(runwayMonths)} חודשים של ההפרש.` : `התזרים בקנייה לא גבוה מהשכירות (דלתא חיובית: ${formatILS(Math.abs(deltaMonthly))}).`);
-            reasons.push(rentWins ? `כלכלית, השכירות מנצחת במודל: פער הון עתידי של ${formatILS(results.diffNetWorth)} לטובת שכירות.` : `כלכלית, הקנייה מנצחת במודל: פער הון עתידי של ${formatILS(results.diffNetWorth)} לטובת קנייה.`);
-            reasons.push(`מבחן לחץ ריבית: אם הריבית עולה 1.5%, יחס ההחזר בקנייה עולה לכ-${formatPct(stressedDSR)}.`);
-            
-            const monthlyYieldRate = (inputs.marketReturn / 100) / 12;
-            const passiveIncome = liquidTotal * monthlyYieldRate;
-            let liquidityStressText = "";
-            if (results.monthlyMortgage > 0) {
-                 if (passiveIncome >= results.monthlyMortgage) {
-                      liquidityStressText = `מבחן לחץ נזילות: התיק הנזיל מייצר הכנסה פסיבית (${formatILS(passiveIncome)}) שמכסה את כל המשכנתא!`;
-                 } else {
-                     const ratio = (liquidTotal * monthlyYieldRate) / results.monthlyMortgage;
-                     if (ratio < 1) {
-                         const months = -Math.log(1 - ratio) / Math.log(1 + monthlyYieldRate);
-                         const years = (months / 12).toFixed(1);
-                         liquidityStressText = `מבחן לחץ נזילות: התיק הנזיל מאפשר לשלם את המשכנתא במשך ${years} שנים מלאות (כולל אפקט הריבית דריבית), גם ללא הכנסה מעבודה.`;
-                     } else {
-                         liquidityStressText = `מבחן לחץ נזילות: התיק מכסה את המשכנתא לנצח (התשואה גדולה מהתשלום).`;
-                     }
-                 }
-            } else {
-                 liquidityStressText = "אין משכנתא לתשלום.";
+            // Updated Reason with Total Income context
+            reasons.push(`יחס החזר מהכנסה כוללת (שכר + תיק): ${formatPct(dsrBuy)}.`);
+            if (monthlyPassiveIncome > 0) {
+                 const coverage = (monthlyPassiveIncome / results.monthlyMortgage) * 100;
+                 if (coverage >= 100) reasons.push(`נתון מדהים: התיק הנזיל מייצר מספיק כדי לשלם את כל המשכנתא (${formatPct(coverage)} כיסוי)!`);
+                 else reasons.push(`התיק הנזיל משלם עבורך ${formatPct(coverage)} מהמשכנתא כל חודש.`);
             }
-            reasons.push(liquidityStressText);
+            
+            reasons.push(deltaMonthly > 0 ? `הקנייה דורשת תוספת תזרים של ${formatILS(deltaMonthly)}, שיכולה להגיע מהתיק.` : `הקנייה זולה יותר תזרימית מהשכירות.`);
+            reasons.push(rentWins ? `כלכלית נטו: השכירות מנצחת ב-${formatILS(results.diffNetWorth)}.` : `כלכלית נטו: הקנייה מנצחת ב-${formatILS(results.diffNetWorth)}.`);
 
             const actions = [];
-            if (verdictKey === 'rent') {
-                actions.push('תגדיר "רף נזילות" קשיח (למשל 12 חודשי שכירות + הוצאות) ואל תרד ממנו.');
-                actions.push('תנהל השקעה חודשית אוטומטית: הפקדה קבועה + הגדלה כשפער התזרים לטובת שכירות גדל.');
-                actions.push('תבחר טריגרים לבדיקה מחדש: ירידת ריבית, ירידת מחיר, או עלייה חריגה בשכירות.');
-            } else if (verdictKey === 'buy') {
-                actions.push('תשים תקרה ליחס החזר נטו (יעד: עד 25%). אם לא עומד - משנה תמהיל/מגדיל הון/מוזיל עסקה.');
-                actions.push('תשאיר כרית נזילות נפרדת מהעסקה (יעד: 18-36 חודשי שקט, תלוי דלתא תזרים).');
-                actions.push('תעשה סט-אפ ל"שנה ראשונה": בלי קפיצות התחייבויות, בלי שיפוצים שמרוקנים כרית.');
-            } else {
-                actions.push('קנייה רק בתנאים: יחס החזר עד 25% + כרית נזילות שמכסה 36 חודשי דלתא אם הקנייה יקרה יותר.');
-                actions.push('אם זה לא קורה - להישאר בשכירות ולצבור כוח (נזילות + תנאי שוק).');
-                actions.push('אל תתפשר על גמישות - זה המחיר האמיתי של טעות בכיוון קנייה.');
-            }
+            actions.push('המשך לנהל את התיק בחוכמה - הוא רשת הביטחון שלך.');
+            if (verdictKey === 'buy') actions.push('אם אתה קונה, נסה לא לחסל את כל התיק. תשאיר אותו עובד.');
+            else actions.push('בשכירות - הקפד להגדיל את התיק עם העודף התזרימי.');
 
-            const badges = [ { label: `יחס החזר נטו: ${formatPct(dsrBuy)}`, color: scoreDSR }, { label: deltaMonthly > 0 ? `Runway: ${Math.floor(runwayMonths)} חודשים` : 'Runway: חיובי', color: scoreRunway } ];
+            const badges = [ { label: `יחס החזר כולל: ${formatPct(dsrBuy)}`, color: scoreDSR }, { label: `כיסוי מהתיק: ${formatILS(monthlyPassiveIncome)}/חודש`, color: 'green' } ];
             const opener = rentWins ? tonePack.openerRent : tonePack.openerBuy;
-            return { title: tonePack.title, verdict: oneLiners[verdictKey], opener, badges, reasons: reasons.slice(0, 5), actions, conditions: conditions.length ? conditions : ['אין תנאים מיוחדים - רק לשמור משמעת תזרימית.'] };
+            return { title: tonePack.title, verdict: oneLiners[verdictKey], opener, badges, reasons: reasons.slice(0, 5), actions, conditions };
         };
 
         // --- Components ---
@@ -505,10 +495,16 @@
                 const buyTotalOutflow = baseline + buyHousing;
                 const rentTotalOutflow = baseline + rentHousing;
 
-                const dtiBuy = net > 0 ? (buyHousing / net) : null;      
-                const dtiRent = net > 0 ? (rentHousing / net) : null;
-                const surplusBuy = net - buyTotalOutflow;
-                const surplusRent = net - rentTotalOutflow;
+                // --- UPDATE: Effective DTI with Passive Income ---
+                const monthlyYieldRate = (inputs.marketReturn / 100) / 12;
+                const passiveIncome = liquid * monthlyYieldRate;
+                const effectiveTotalIncome = net + passiveIncome;
+
+                const dtiBuy = effectiveTotalIncome > 0 ? (buyHousing / effectiveTotalIncome) : null;      
+                const dtiRent = effectiveTotalIncome > 0 ? (rentHousing / effectiveTotalIncome) : null;
+                
+                const surplusBuy = effectiveTotalIncome - buyTotalOutflow;
+                const surplusRent = effectiveTotalIncome - rentTotalOutflow;
 
                 const emergencyMonthsBuy = buyTotalOutflow > 0 ? (liquid / buyTotalOutflow) : null;
                 const emergencyMonthsRent = rentTotalOutflow > 0 ? (liquid / rentTotalOutflow) : null;
@@ -519,7 +515,7 @@
                 const stressBuyTotal = baseline + stressBuyHousing;
                 const stressMonths = stressBuyTotal > 0 ? (stressLiquid / stressBuyTotal) : null;
 
-                const safeDTI = 0.30; 
+                const safeDTI = 0.35; // Increased safety threshold because we include asset backing
                 const targetMonths = Math.max(0, inputs.targetEmergencyMonths || 0);
 
                 const flags = {
@@ -533,23 +529,30 @@
                 const buyWins = results.buyNetWorth > results.rentNetWorth;
                 const rentWins = results.rentNetWorth > results.buyNetWorth;
 
+                // Enhanced Guidance Logic
                 if (buyWins) {
                     stance = "קנייה עדיפה כלכלית";
-                    if (flags.dtiBuyHigh) guidance.push("אבל עומס דיור גבוה - שקול להגדיל הון עצמי או להאריך תקופה.");
-                    if (flags.surplusBuyNegative) guidance.push("התזרים החודשי בקנייה שלילי - בפועל תצטרך למשוך מהתיק/מקורות חיצוניים.");
-                    if (flags.emergencyLow) guidance.push("כרית נזילות נמוכה - מומלץ לשמור יותר נזיל לפני התחייבות.");
-                    if (!flags.dtiBuyHigh && !flags.surplusBuyNegative && !flags.emergencyLow) guidance.push("החוסן טוב - העסקה נראית יציבה.");
+                    if (flags.dtiBuyHigh) {
+                        if (passiveIncome > 1000) guidance.push("עומס הדיור גבוה ביחס לשכר, אך התיק שלך תומך בתזרים.");
+                        else guidance.push("עומס דיור גבוה - שקול להגדיל הון עצמי או להאריך תקופה.");
+                    }
+                    if (flags.surplusBuyNegative) guidance.push("התזרים החודשי שלילי - תצטרך לממש חלק מהתיק כל חודש.");
+                    
+                    if (!flags.dtiBuyHigh && !flags.surplusBuyNegative) guidance.push("החוסן מצוין - גם השכר וגם התיק תומכים בעסקה.");
                 } else if (rentWins) {
                     stance = "שכירות עדיפה כלכלית";
-                    if (flags.emergencyLow) guidance.push("אבל כרית נזילות נמוכה גם בשכירות - תעדף יציבות והגדלת נזילות.");
-                    if (surplusRent < 0) guidance.push("גם בשכירות התזרים שלילי - צריך לקצץ/להעלות הכנסות או לשנות הנחות.");
-                    guidance.push("אם המטרה היא בעלות רגשית - תצטרך 'לשלם' פרמיית בעלות, אבל לעשות זאת מתוך חוסן.");
+                    if (passiveIncome > rentHousing) guidance.push("התיק שלך משלם את כל השכירות! זה מצב של חופש כלכלי אמיתי.");
+                    guidance.push("ההון הפנוי בשכירות ממשיך לצמוח מהר יותר מאשר בקירות הבית.");
                 } else {
                     stance = "תיקו כלכלי";
-                    guidance.push("במצב תיקו - החוסן והתזרים הם אלה שמכריעים.");
+                    guidance.push("במצב תיקו, התיק הגדול שלך מאפשר לך לבחור בלב שקט מה שמתאים ללב.");
                 }
 
-                return { dtiBuy, dtiRent, surplusBuy, surplusRent, emergencyMonthsBuy, emergencyMonthsRent, stressMortgage, stressMonths, stance, guidance, flags, safeDTI, targetMonths };
+                return { 
+                    dtiBuy, dtiRent, surplusBuy, surplusRent, emergencyMonthsBuy, emergencyMonthsRent, 
+                    stressMortgage, stressMonths, stance, guidance, flags, safeDTI, targetMonths,
+                    passiveIncome, effectiveTotalIncome
+                };
             }, [inputs, results, loanDetails]);
 
             const sensitivity = useMemo(() => computeSensitivity(inputs), [inputs]);
@@ -639,7 +642,7 @@
                         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
                             <div className="flex items-center space-x-2 space-x-reverse">
                                 <Building className="text-blue-600" size={28} />
-                                <div className="mr-2"><h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1><span className="text-xs text-gray-500">מהדורה מקצועית v23</span></div>
+                                <div className="mr-2"><h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1><span className="text-xs text-gray-500">מהדורה מקצועית v24</span></div>
                             </div>
                             <nav className="flex space-x-1 space-x-reverse bg-gray-100 p-1 rounded-lg overflow-x-auto">
                                 {[{ id: 1, label: 'סימולטור', icon: Home }, { id: 2, label: 'מינוף', icon: TrendingUp }, { id: 3, label: 'תמהיל', icon: PieChart }, { id: 4, label: 'תזרים', icon: Table2 }, { id: 5, label: 'תובנות', icon: Brain }, { id: 6, label: 'אם זה היה חבר שלי', icon: Crown }].map((tab) => (
@@ -678,7 +681,7 @@
 
                                       <InputField label="תיק השקעות נזיל" value={inputs.liquidPortfolio}
                                         onChange={(v) => handleInputChange('liquidPortfolio', v)} suffix="₪" type="text" inputMode="numeric"
-                                        tooltip="נכסים נזילים שאינם ההון העצמי לעסקה - כרית בטחון/גמישות"
+                                        tooltip="נכסים נזילים שאינם ההון העצמי לעסקה - כרית בטחון/גמישות. מניח תשואה זהה לשוק ההון."
                                       />
 
                                       <InputField label="הוצאות מחיה חודשיות" value={inputs.baselineLivingCost}
@@ -752,40 +755,41 @@
                                         <p className="mt-4 text-center font-medium text-gray-700">ההפרש לטובת {results.buyNetWorth > results.rentNetWorth ? 'קניה' : 'השכירות'}: <span className="text-xl mr-2 font-bold text-green-600">{formatILS(results.diffNetWorth)}</span></p>
                                     </div>
 
-                                    {/* Break-even & Monthly Premium Section */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                                        <div className={`p-4 rounded-xl border-l-4 ${isRentWinner ? 'bg-red-50 border-red-500' : 'bg-green-50 border-green-500'} shadow-sm`}>
-                                            <h3 className="text-lg font-bold flex items-center">{isRentWinner ? (<><DollarSign className="ml-2 text-red-600" />פרמיית הבעלות</>) : (<><TrendingUp className="ml-2 text-green-600" />הרווח החודשי</>)}</h3>
-                                            <div className="flex items-baseline mt-2"><span className={`text-3xl font-bold ${isRentWinner ? 'text-red-700' : 'text-green-700'} ml-2`}>{formatILS(monthlyPremium)}</span><span className="text-gray-600">לחודש</span></div>
-                                            <p className="text-xs text-gray-500 mt-2">{isRentWinner ? "המחיר הכלכלי החודשי של המגורים בדירה בבעלות." : "היתרון הכלכלי החודשי של קניית דירה."}</p>
+                                    {/* Monthly Premium Section */}
+                                    <div className={`mt-6 p-4 rounded-xl border-l-4 ${isRentWinner ? 'bg-red-50 border-red-500' : 'bg-green-50 border-green-500'} shadow-sm`}>
+                                        <h3 className="text-lg font-bold flex items-center">
+                                            {isRentWinner ? (
+                                                <>
+                                                    <DollarSign className="ml-2 text-red-600" /> 
+                                                    המחיר הכלכלי: "פרמיית הבעלות"
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <TrendingUp className="ml-2 text-green-600" />
+                                                    הרווח הכלכלי החודשי בקנייה
+                                                </>
+                                            )}
+                                        </h3>
+                                        <div className="flex items-baseline mt-2">
+                                            <span className={`text-3xl font-bold ${isRentWinner ? 'text-red-700' : 'text-green-700'} ml-2`}>
+                                                {formatILS(monthlyPremium)}
+                                            </span>
+                                            <span className="text-gray-600">לחודש (בממוצע לאורך התקופה)</span>
                                         </div>
-                                        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center items-center text-center">
-                                            <h3 className="font-bold text-gray-700 mb-2 flex items-center"><RotateCcw className="ml-2 text-blue-500" size={18}/> נקודת האיזון (Break-even)</h3>
-                                            {results.breakEvenYear ? (<><div className="text-3xl font-bold text-blue-600">שנה {results.breakEvenYear}</div><p className="text-xs text-gray-500 mt-1">בשנה זו, קניית הדירה הופכת למשתלמת יותר משכירות.</p></>) : (<><div className="text-xl font-bold text-gray-400">לא בטווח הבדיקה</div><p className="text-xs text-gray-500 mt-1">בטווח של {inputs.analysisYears} שנים, השכירות נשארת עדיפה.</p></>)}
-                                        </div>
+                                        <p className="text-sm text-gray-600 mt-2">
+                                            {isRentWinner 
+                                                ? "משמעות: בכל חודש שבו בחרתם לגור בדירה בבעלותכם במקום לשכור ולהשקיע, 'שילמתם' בפועל את הסכום הזה מתוך ההון העתידי שלכם."
+                                                : "משמעות: בכל חודש, ההחלטה לקנות דירה מגדילה את ההון העתידי שלכם בסכום זה בהשוואה לחלופת השכירות."}
+                                        </p>
                                     </div>
-                                    
-                                    {/* Sensitivity Tornado Chart */}
-                                    <div className="bg-white p-6 rounded-xl shadow-sm mt-6 border border-gray-100">
-                                        <h3 className="font-bold mb-1 text-gray-700 text-center flex items-center justify-center"><Wind className="ml-2 text-gray-400" /> ניתוח רגישות (מה מזיז את המחט?)</h3>
-                                        <p className="text-xs text-gray-500 text-center mb-6">השפעת שינוי קטן בכל פרמטר על הפער הסופי</p>
-                                        <div className="space-y-4">
-                                            {sensitivity.map((s) => {
-                                                const maxImpact = sensitivity[0].impact; const w = Math.max(5, Math.round((s.impact / maxImpact) * 100));
-                                                return (
-                                                    <div key={s.key} className="relative">
-                                                        <div className="flex justify-between text-xs mb-1 px-1"><span className="font-bold text-gray-700">{s.label} <span className="font-normal text-gray-400">(±{s.delta}{s.unit})</span></span><span className="text-gray-500">השפעה: {formatILS(s.impact)}</span></div>
-                                                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-blue-400 rounded-full" style={{ width: `${w}%` }}></div></div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+
+                                    <div className="flex justify-end mt-4">
+                                        <button onClick={() => setActiveTab(2)} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center transition-colors shadow-lg">שלב הבא: אופטימיזציית הון עצמי <ArrowRightLeft className="mr-2" size={18} /></button>
                                     </div>
-                                    <div className="flex justify-end mt-4"><button onClick={() => setActiveTab(2)} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center transition-colors shadow-lg">שלב הבא: אופטימיזציית הון עצמי <ArrowRightLeft className="mr-2" size={18} /></button></div>
                                 </div>
                             </div>
                         )}
-                        {/* Tab 2, 3, 4 */}
+                        {/* Tab 2, 3, 4, 5 logic... */}
                         {activeTab === 2 && (
                             <div className="max-w-3xl mx-auto space-y-6 animate-in slide-in-from-right-4 duration-500">
                                 <div className="bg-white p-8 rounded-xl shadow-sm text-center">
@@ -935,9 +939,9 @@
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                                        <div className="text-gray-500 text-sm mb-1">עומס דיור בקנייה (DTI)</div>
+                                        <div className="text-gray-500 text-sm mb-1">עומס דיור (כולל הכנסת תיק)</div>
                                         <div className={`text-3xl font-bold ${profile.dtiBuy !== null && profile.dtiBuy > profile.safeDTI ? 'text-red-600' : 'text-green-600'}`}>{profile.dtiBuy === null ? '---' : `${Math.round(profile.dtiBuy*100)}%`}</div>
-                                        <div className="text-xs text-gray-400 mt-2">יעד בטיחות: עד {Math.round(profile.safeDTI*100)}% מההכנסה</div>
+                                        <div className="text-xs text-gray-400 mt-2">יעד בטיחות: עד {Math.round(profile.safeDTI*100)}%</div>
                                     </div>
                                     <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
                                         <div className="text-gray-500 text-sm mb-1">חודשי כרית נזילות (בקנייה)</div>
@@ -945,9 +949,9 @@
                                         <div className="text-xs text-gray-400 mt-2">יעד מומלץ: {profile.targetMonths || 0} חודשים</div>
                                     </div>
                                     <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                                        <div className="text-gray-500 text-sm mb-1">סטראס טסט (ריבית +{inputs.stressRateUp}% ותיק -{inputs.stressMarketDown}%)</div>
-                                        <div className={`text-3xl font-bold ${profile.stressMonths !== null && profile.targetMonths > 0 && profile.stressMonths < Math.max(6, Math.round(profile.targetMonths*0.5)) ? 'text-red-600' : 'text-green-600'}`}>{profile.stressMonths === null ? '---' : `${Math.floor(profile.stressMonths)} חודשי שרידות`}</div>
-                                        <div className="text-xs text-gray-400 mt-2">החזר משכנתא בסטראס: {formatILS(profile.stressMortgage || 0)}</div>
+                                        <div className="text-gray-500 text-sm mb-1">הכנסה חודשית מהתיק</div>
+                                        <div className="text-3xl font-bold text-blue-600">{formatILS(profile.passiveIncome)}</div>
+                                        <div className="text-xs text-gray-400 mt-2">מגדילה את הנטו ל-{formatILS(profile.effectiveTotalIncome)}</div>
                                     </div>
                                 </div>
                                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -960,12 +964,12 @@
                                         <div className="bg-green-50 border border-green-100 p-4 rounded-lg">
                                             <div className="font-bold text-green-800 mb-1">עודף חודשי בקנייה</div>
                                             <div className={`text-lg font-bold ${profile.surplusBuy < 0 ? 'text-red-700' : 'text-green-700'}`}>{formatILS(profile.surplusBuy)}</div>
-                                            <div className="text-xs text-gray-500 mt-1">נטו - (מחיה ללא דיור + משכנתא + תחזוקה)</div>
+                                            <div className="text-xs text-gray-500 mt-1">כולל הכנסה פסיבית מהתיק</div>
                                         </div>
                                         <div className="bg-purple-50 border border-purple-100 p-4 rounded-lg">
                                             <div className="font-bold text-purple-800 mb-1">עודף חודשי בשכירות</div>
                                             <div className={`text-lg font-bold ${profile.surplusRent < 0 ? 'text-red-700' : 'text-purple-700'}`}>{formatILS(profile.surplusRent)}</div>
-                                            <div className="text-xs text-gray-500 mt-1">נטו - (מחיה ללא דיור + שכירות)</div>
+                                            <div className="text-xs text-gray-500 mt-1">כולל הכנסה פסיבית מהתיק</div>
                                         </div>
                                     </div>
                                 </div>
