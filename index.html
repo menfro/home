@@ -94,7 +94,6 @@
             maintenanceCost: 0.15, 
             purchaseTaxRate: 0.0, 
             buyingMiscAmount: 40000, 
-            renovationCost: 0, // New: Renovation / Initial Fixes
             brokerageRate: 1.5, 
             sellingExpensesRate: 1.5, capitalGainsTax: 25.0, vatRate: 17.0,
             
@@ -147,7 +146,7 @@
             const purchaseTaxAmount = inputs.propertyPrice * (inputs.purchaseTaxRate / 100);
             const buyingMiscAmount = inputs.buyingMiscAmount; 
             const brokerageAmount = inputs.propertyPrice * (inputs.brokerageRate / 100) * (1 + inputs.vatRate / 100);
-            const renovationCost = inputs.renovationCost || 0; // NEW: Renovation
+            const renovationCost = inputs.renovationCost || 0; 
             
             // Total cost to get keys
             const totalAcquisitionCost = inputs.propertyPrice + purchaseTaxAmount + buyingMiscAmount + brokerageAmount + renovationCost;
@@ -177,6 +176,8 @@
             return { 
                 purchaseTaxAmount, buyingMiscAmount, brokerageAmount, renovationCost, totalEntryCosts,
                 totalAcquisitionCost, equityUsed, loanAmount, loanUsedForProperty, 
+                remainingEquityBucket,
+                remainingLiquidEquity: remainingEquityBucket, // Alias for backward compatibility
                 buyerStartingLiquid, renterStartingLiquid 
             };
         };
@@ -219,7 +220,8 @@
                     breakdownBuy: { interest: 0, maintenance: 0, purchaseTax: 0, buyingMisc: 0, brokerage: 0, renovation: 0, sellingExpenses: 0 },
                     breakdownRent: { rent: 0 },
                     capitalGainsTax: 0, portfolioHitZeroMonth: null, sellingExpenses: 0, purchaseTaxAmount: 0, buyingMiscAmount: 0, brokerageAmount: 0, renovationCost: 0,
-                    yearlyData: [], breakEvenYear: null, yearRecoveredEntryCosts: null, buyerSidePortfolio: 0
+                    yearlyData: [], breakEvenYear: null, yearRecoveredEntryCosts: null, buyerSidePortfolio: 0,
+                    renterPortfolioGross: 0, buyerSidePortfolioGross: 0, netWorthGap: 0
                 };
             }
 
@@ -244,16 +246,18 @@
                 
                 // --- Update Renter Portfolio ---
                 investmentPortfolio *= (1 + inputs.marketReturn / 100 / 12);
-                // Renter adds savings (diff > 0) or withdraws (diff < 0)
+                
                 if (difference > 0) {
+                    // Buyer pays more -> Renter saves the difference
                     investmentPortfolio += difference;
                     totalInvestedPrincipal += difference;
                 } else {
-                    // Buyer pays less -> Renter must pay MORE than buyer -> withdraws difference to match lifestyle cost? 
-                    // No, simpler: Comparison assumes same disposable income usage.
-                    // If Rent > Buy (diff < 0), Renter pays |diff| more. This comes OUT of portfolio.
+                    // Rent is more expensive -> Renter withdraws difference from portfolio
                     investmentPortfolio += difference; // difference is negative
+                    // Fix: Reduce principal on withdrawal (clamped to 0) to avoid artificial tax drag
+                    totalInvestedPrincipal = Math.max(0, totalInvestedPrincipal + difference);
                 }
+                
                 if (investmentPortfolio < 0) { investmentPortfolio = 0; if (portfolioHitZeroMonth === null) portfolioHitZeroMonth = i; }
 
                 // --- Update Buyer Side Portfolio ---
@@ -273,20 +277,16 @@
                     const remainingLoan = calculateRemainingBalance(loanAmount, inputs.mortgageInterest, inputs.mortgageTerm, i);
                     const sellExpenses = currentPropVal * (inputs.sellingExpensesRate / 100);
                     
-                    // Calc Net Worths with Exit Tax
-                    // Buyer Side Portfolio Tax
-                    const bGain = Math.max(0, buyerSidePortfolio - buyerInvestedPrincipal);
-                    const bTax = bGain * (inputs.capitalGainsTax / 100);
-                    const bLiquidNet = buyerSidePortfolio - bTax;
+                    let buyerLiquid = remainingLiquidEquity * Math.pow(1 + inputs.marketReturn/100, year);
+                    const buyerLiquidGain = Math.max(0, buyerLiquid - remainingLiquidEquity);
+                    const buyerLiquidTax = buyerLiquidGain * (inputs.capitalGainsTax / 100);
+                    buyerLiquid -= buyerLiquidTax;
 
-                    // Property Net
-                    // Real Mas Shevach is complex, simplified to Selling Expenses here per user request.
-                    const netWorthBuy = currentPropVal - remainingLoan - sellExpenses + bLiquidNet;
+                    const netWorthBuy = currentPropVal - remainingLoan - sellExpenses + buyerLiquid;
                     
-                    // Renter Portfolio Tax
-                    const rGain = Math.max(0, investmentPortfolio - totalInvestedPrincipal);
-                    const rTax = rGain * (inputs.capitalGainsTax / 100);
-                    const netWorthRent = investmentPortfolio - rTax;
+                    const portGain = Math.max(0, investmentPortfolio - totalInvestedPrincipal);
+                    const portTax = portGain * (inputs.capitalGainsTax / 100);
+                    const netWorthRent = investmentPortfolio - portTax;
 
                     yearlyData.push({
                         year, propValue: currentPropVal, loanBalance: remainingLoan,
@@ -294,8 +294,6 @@
                         buyerLiquid: bLiquidNet 
                     });
                     
-                    // Recovered Entry Costs Logic:
-                    // Has Capital Gain covered Sunk Entry Costs?
                     const capitalGain = currentPropVal - inputs.propertyPrice;
                     if (yearRecoveredEntryCosts === null && capitalGain > totalEntryCosts) { 
                         yearRecoveredEntryCosts = year;
@@ -310,6 +308,7 @@
             const sellingExpenses = futurePropertyValue * (inputs.sellingExpensesRate / 100);
             
             // Buyer Side Liquid Final
+            const buyerSidePortfolioGross = buyerSidePortfolio;
             const bGain = Math.max(0, buyerSidePortfolio - buyerInvestedPrincipal);
             const bTax = bGain * (inputs.capitalGainsTax / 100);
             const buyerLiquidFinal = buyerSidePortfolio - bTax;
@@ -317,26 +316,31 @@
             const buyNetWorth = futurePropertyValue - remainingLoanBalance - sellingExpenses + buyerLiquidFinal;
 
             // Renter Liquid Final
+            const renterPortfolioGross = investmentPortfolio;
             const rGain = Math.max(0, investmentPortfolio - totalInvestedPrincipal);
             const rTax = rGain * (inputs.capitalGainsTax / 100);
             const rentNetWorth = investmentPortfolio - rTax;
 
             const principalReduced = loanAmount - remainingLoanBalance;
             const totalInterestPaid = Math.max(0, totalMortgagePaid - principalReduced);
-            // Sunk Buy: Interest + Maintenance + Entry Taxes/Fees + Exit Fees
             const totalSunkBuy = totalInterestPaid + totalMaintenancePaid + totalEntryCosts + sellingExpenses;
 
             const breakEven = yearlyData.find(y => y.netWorthBuy >= y.netWorthRent);
             const breakEvenYear = breakEven ? breakEven.year : null;
+            const netWorthGap = buyNetWorth - rentNetWorth;
             
             return {
-                buyNetWorth, rentNetWorth, diffNetWorth: Math.abs(buyNetWorth - rentNetWorth),
+                buyNetWorth, rentNetWorth, 
+                netWorthGap,
+                diffNetWorth: Math.abs(netWorthGap),
                 futurePropertyValue, remainingLoanBalance, loanAmount, monthlyMortgage, monthlyHousingCostStart,
                 totalSunkBuy, totalSunkRent: totalRentPaid,
                 breakdownBuy: { interest: totalInterestPaid, maintenance: totalMaintenancePaid, purchaseTax: purchaseTaxAmount, buyingMisc: buyingMiscAmount, brokerage: brokerageAmount, renovation: renovationCost, sellingExpenses },
                 breakdownRent: { rent: totalRentPaid },
                 capitalGainsTax: rTax, portfolioHitZeroMonth, sellingExpenses, purchaseTaxAmount, buyingMiscAmount, brokerageAmount, renovationCost,
-                yearlyData, breakEvenYear, yearRecoveredEntryCosts, buyerSidePortfolio: buyerLiquidFinal
+                yearlyData, breakEvenYear, yearRecoveredEntryCosts, 
+                buyerSidePortfolio: buyerLiquidFinal,
+                buyerSidePortfolioGross, renterPortfolioGross
             };
         };
 
@@ -417,9 +421,9 @@
             }
 
             const tonePack = {
-                soft: { title: 'אם זה היה חבר שלי - בגישה רגועה', openerRent: 'אני לא הייתי ממהר לקנות עכשיו. אתה לא מפסיד "חיים", אתה קונה זמן וגמישות.', openerBuy: 'אם אתה רוצה לקנות - זה יכול להיות הגיוני. אבל רק אם שומרים על גמישות ומקטינים סיכון תזרים.' },
-                sharp: { title: 'אם זה היה חבר שלי - האמת הישירה', openerRent: 'עם המספרים האלה, קנייה עכשיו היא החלטה שמקטינה לך חופש. הייתי בוחר לשכור ולהשקיע.', openerBuy: 'יש כאן יתרון כלכלי לקנייה, אבל אל תתבלבל - בלי שליטה בתזרים זה עלול להפוך לנטל.' },
-                hard: { title: 'אם זה היה חבר שלי - בלי פילטרים', openerRent: 'אל תקנה לחץ. אתה יכול להרשות לעצמך דירה - אבל אתה לא חייב להרשות לעצמך סיכון.', openerBuy: 'אתה יכול לקנות - אבל אם אתה לא עומד בספים, אתה קונה לעצמך שנים של מתח.' }
+                soft: { title: 'אם זה היה חבר שלי - בגישה רגועה', openerRent: 'עם גב כלכלי כזה, אין לחץ לקנות. התיק עובד בשבילך.', openerBuy: 'יש לך גב חזק מהתיק, אז הקנייה בטוחה יחסית גם אם היא יקרה.' },
+                sharp: { title: 'אם זה היה חבר שלי - האמת הישירה', openerRent: 'התיק שלך הוא מכונת כסף. למה לקבור אותו בקירות? תמשיך לשכור.', openerBuy: 'אתה קונה כי בא לך, לא כי צריך. התיק שלך משלם את המשכנתא, אז תהנה.' },
+                hard: { title: 'אם זה היה חבר שלי - בלי פילטרים', openerRent: 'אל תקנה לחץ. אתה יכול להרשות לעצמך דירה - אבל אתה לא חייב להרשות לעצמך סיכון.', openerBuy: 'תקנה. התיק מחזיק אותך. מקסימום תמכור חלק מהמניות.' }
             }[tone];
 
             let verdictKey = 'balanced';
@@ -435,7 +439,6 @@
             };
 
             const reasons = [];
-            // Updated Reason with Total Income context
             reasons.push(`יחס החזר מהכנסה כוללת (שכר + תיק): ${formatPct(dsrBuy)}.`);
             if (monthlyPassiveIncome > 0) {
                  const coverage = (monthlyPassiveIncome / results.monthlyMortgage) * 100;
@@ -566,12 +569,12 @@
                 const liquid = Math.max(0, inputs.liquidPortfolio || 0);
                 const baseline = Math.max(0, inputs.baselineLivingCost || 0);
 
-                const buyHousing = (results.monthlyHousingCostStart || 0); // Include Maint in DTI
+                const buyHousing = (results.monthlyMortgage || 0) + (inputs.propertyPrice * (inputs.maintenanceCost/100/12)); 
                 const rentHousing = (inputs.currentRent || 0);
                 const buyTotalOutflow = baseline + buyHousing;
                 const rentTotalOutflow = baseline + rentHousing;
 
-                // --- UPDATE: Effective DTI with Passive Income ---
+                // --- Effective DTI with Passive Income ---
                 const monthlyYieldRate = (inputs.marketReturn / 100) / 12;
                 const passiveIncome = liquid * monthlyYieldRate;
                 const effectiveTotalIncome = net + passiveIncome;
@@ -587,13 +590,11 @@
 
                 const stressMortgage = calculatePMT(results.loanAmount, inputs.mortgageInterest + (inputs.stressRateUp || 0), inputs.mortgageTerm);
                 const stressLiquid = liquid * (1 - (Math.max(0, inputs.stressMarketDown || 0) / 100));
-                // Add maintenance to stress housing cost
-                const startMaint = (inputs.propertyPrice * (inputs.maintenanceCost / 100)) / 12;
-                const stressBuyHousing = stressMortgage + startMaint; 
+                const stressBuyHousing = stressMortgage + (buyHousing - results.monthlyMortgage); 
                 const stressBuyTotal = baseline + stressBuyHousing;
                 const stressMonths = stressBuyTotal > 0 ? (stressLiquid / stressBuyTotal) : null;
 
-                const safeDTI = 0.35; // Increased safety threshold because we include asset backing
+                const safeDTI = 0.35; 
                 const targetMonths = Math.max(0, inputs.targetEmergencyMonths || 0);
 
                 const flags = {
@@ -694,8 +695,8 @@
             };
 
             // Buyer/Renter Liquid/Burn for Tab 5 Insights
-            const buyerLiquid = results.buyerSidePortfolio || 0;
-            const renterLiquid = results.rentNetWorth || 0;
+            const buyerLiquid = results.buyerSidePortfolioGross || 0; // Use GROSS per updated logic
+            const renterLiquid = results.renterPortfolioGross || 0;   // Use GROSS
             const buyerMonthlyBurn = results.monthlyHousingCostStart || 1; // Include Maint in burn
             const renterMonthlyBurn = inputs.currentRent || 1;
             const buyerFreedomMonths = (buyerLiquid / buyerMonthlyBurn).toFixed(1);
@@ -720,7 +721,7 @@
                         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
                             <div className="flex items-center space-x-2 space-x-reverse">
                                 <Building className="text-blue-600" size={28} />
-                                <div className="mr-2"><h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1><span className="text-xs text-gray-500">מהדורה מקצועית v26</span></div>
+                                <div className="mr-2"><h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1><span className="text-xs text-gray-500">מהדורה מקצועית v27</span></div>
                             </div>
                             <nav className="flex space-x-1 space-x-reverse bg-gray-100 p-1 rounded-lg overflow-x-auto">
                                 {[{ id: 1, label: 'סימולטור', icon: Home }, { id: 2, label: 'מינוף', icon: TrendingUp }, { id: 3, label: 'תמהיל', icon: PieChart }, { id: 4, label: 'תזרים', icon: Table2 }, { id: 5, label: 'תובנות', icon: Brain }, { id: 6, label: 'אם זה היה חבר שלי', icon: Crown }].map((tab) => (
@@ -739,7 +740,7 @@
                                     <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
                                         <h2 className="text-lg font-bold mb-4 flex items-center text-gray-800"><Calculator className="ml-2 text-blue-500" size={20} /> נתוני עסקה</h2>
                                         <InputField label="מחיר הנכס" value={inputs.propertyPrice} onChange={(v) => handleInputChange('propertyPrice', v)} suffix="₪" type="text" inputMode="numeric" />
-                                        <InputField label="הון עצמי קיים" value={inputs.equity} onChange={(v) => handleInputChange('equity', v)} suffix="₪" tooltip="סך הכסף הנזיל המיועד לרכישה (כולל הוצאות)" type="text" inputMode="numeric" />
+                                        <InputField label="הון עצמי קיים" value={inputs.equity} onChange={(v) => handleInputChange('equity', v)} suffix="₪" tooltip="סך הכסף הנזיל שיש ברשותכם כרגע (לצורך העסקה)" type="text" inputMode="numeric" />
                                         <InputField label="שכירות נוכחית" value={inputs.currentRent} onChange={(v) => handleInputChange('currentRent', v)} suffix="₪" type="text" inputMode="numeric" />
                                         <div className="grid grid-cols-2 gap-2">
                                             <InputField label="טווח בדיקה" value={inputs.analysisYears} onChange={(v) => handleInputChange('analysisYears', v)} type="number" suffix="שנים" inputMode="numeric" />
@@ -823,7 +824,7 @@
                                                 <div className="text-right hidden sm:block"><span className="block text-xs text-gray-500">למרות ההוצאות, נשאר ביד (Net Worth):</span><span className="font-bold text-gray-800">קניה: {formatILS(results.buyNetWorth)} | שכירות: {formatILS(results.rentNetWorth)}</span></div>
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <ResultCard title="עלויות במסלול קניה" headerColor="text-red-700" value={formatILS(results.totalSunkBuy)} subtext="סך הוצאות (ריבית, מיסים, תחזוקה, עלויות כניסה/יציאה)" isWinner={results.totalSunkBuy < results.totalSunkRent} icon={DollarSign} bottomContent={<div className="text-xs space-y-1 text-gray-500 pt-3 border-t"><div className="flex justify-between"><span>תשלומי ריבית:</span> <span>{formatILS(results.breakdownBuy.interest)}</span></div><div className="flex justify-between"><span>תחזוקה ובלאי:</span> <span>{formatILS(results.breakdownBuy.maintenance)}</span></div><div className="flex justify-between"><span>מס/עו"ד/תיווך/שיפוץ (כניסה):</span> <span>{formatILS(results.breakdownBuy.totalEntryCosts || (results.breakdownBuy.purchaseTax + results.breakdownBuy.buyingMisc + results.breakdownBuy.brokerage + results.breakdownBuy.renovation))}</span></div><div className="flex justify-between"><span>הוצאות מכירה (יציאה):</span> <span>{formatILS(results.breakdownBuy.sellingExpenses)}</span></div></div>} />
+                                                <ResultCard title="עלויות במסלול קניה" headerColor="text-red-700" value={formatILS(results.totalSunkBuy)} subtext="סך הוצאות (ריבית, מיסים, תחזוקה, עלויות כניסה/יציאה)" isWinner={results.totalSunkBuy < results.totalSunkRent} icon={DollarSign} bottomContent={<div className="text-xs space-y-1 text-gray-500 pt-3 border-t"><div className="flex justify-between"><span>תשלומי ריבית:</span> <span>{formatILS(results.breakdownBuy.interest)}</span></div><div className="flex justify-between"><span>תחזוקה ובלאי:</span> <span>{formatILS(results.breakdownBuy.maintenance)}</span></div><div className="flex justify-between"><span>מס/עו"ד/תיווך/שיפוץ (כניסה):</span> <span>{formatILS(results.breakdownBuy.purchaseTax + results.breakdownBuy.buyingMisc + results.breakdownBuy.brokerage + results.breakdownBuy.renovation)}</span></div><div className="flex justify-between"><span>הוצאות מכירה (יציאה):</span> <span>{formatILS(results.breakdownBuy.sellingExpenses)}</span></div></div>} />
                                                 <ResultCard title="עלויות במסלול שכירות" headerColor="text-red-700" value={formatILS(results.totalSunkRent)} subtext="סך תשלומי השכירות" isWinner={results.totalSunkRent < results.totalSunkBuy} icon={DollarSign} bottomContent={<div className="text-xs space-y-1 text-gray-500 pt-3 border-t"><div className="flex justify-between"><span>שכירות מצטברת:</span> <span>{formatILS(results.breakdownRent.rent)}</span></div></div>} />
                                             </div>
                                         </div>
@@ -875,10 +876,10 @@
                                 <div className="bg-white p-8 rounded-xl shadow-sm text-center">
                                     <h2 className="text-2xl font-bold mb-2">כמה הון עצמי להביא?</h2>
                                     <p className="text-gray-500 mb-8">האם להשתמש בכל החסכונות או לקחת משכנתא גדולה יותר?</p>
-                                    {(results.purchaseTaxAmount + results.buyingMiscAmount + results.brokerageAmount + results.renovationCost) > 0 && (<div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm mb-6 inline-block mx-auto border border-red-100">שים לב: <strong>{formatILS(results.purchaseTaxAmount + results.buyingMiscAmount + results.brokerageAmount + results.renovationCost)}</strong> מההון העצמי הולכים להוצאות רכישה (מס, עו"ד, תיווך, שיפוץ) ולא למחיר הדירה.</div>)}
+                                    {(results.purchaseTaxAmount + results.buyingMiscAmount + results.brokerageAmount) > 0 && (<div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm mb-6 inline-block mx-auto border border-red-100">שים לב: <strong>{formatILS(results.purchaseTaxAmount + results.buyingMiscAmount + results.brokerageAmount)}</strong> מההון העצמי הולכים להוצאות רכישה (מס, עו"ד, תיווך וכו').</div>)}
                                     <div className="mb-10 px-4">
                                         <label className="block text-lg font-medium mb-4">LTV (מימון משווי נכס): <span className="text-blue-600 font-bold text-2xl">{Math.round((loanDetails.loanUsedForProperty / inputs.propertyPrice) * 100)}%</span></label>
-                                        <input type="range" min="25" max="75" step="5" value={Math.round((loanDetails.loanUsedForProperty / inputs.propertyPrice) * 100) || 70} onChange={(e) => { const percent = parseInt(e.target.value); const targetLoanForProp = inputs.propertyPrice * (percent / 100); const targetEquityForProp = inputs.propertyPrice - targetLoanForProp; const purchaseTaxAmount = inputs.propertyPrice * (inputs.purchaseTaxRate / 100); const buyingMiscAmount = inputs.buyingMiscAmount; const brokerageAmount = inputs.propertyPrice * (inputs.brokerageRate / 100) * (1 + inputs.vatRate / 100); const renovationCost = inputs.renovationCost || 0; const targetEquityUsed = targetEquityForProp + purchaseTaxAmount + buyingMiscAmount + brokerageAmount + renovationCost; handleInputChange('equity', Math.max(0, targetEquityUsed)); }} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                                        <input type="range" min="25" max="75" step="5" value={Math.round((loanDetails.loanUsedForProperty / inputs.propertyPrice) * 100) || 70} onChange={(e) => { const percent = parseInt(e.target.value); const targetLoanForProp = inputs.propertyPrice * (percent / 100); const targetEquityForProp = inputs.propertyPrice - targetLoanForProp; const purchaseTaxAmount = inputs.propertyPrice * (inputs.purchaseTaxRate / 100); const buyingMiscAmount = inputs.buyingMiscAmount; const brokerageAmount = inputs.propertyPrice * (inputs.brokerageRate / 100) * (1 + inputs.vatRate / 100); const targetEquityUsed = targetEquityForProp + purchaseTaxAmount + buyingMiscAmount + brokerageAmount; handleInputChange('equity', Math.max(0, targetEquityUsed)); }} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
                                         <div className="flex justify-between text-sm text-gray-500 mt-2"><span>25% (הון גבוה)</span><span>75% (מינוף מקסימלי)</span></div>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-right">
@@ -971,6 +972,45 @@
                                 </div>
                             </div>
                         )}
+                        {activeTab === 4 && (
+                            <div className="animate-in fade-in duration-500">
+                                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+                                    <div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold text-gray-800 flex items-center"><Table2 className="ml-2 text-blue-500"/> טבלת התפתחות שנתית</h2><span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">כל הסכומים בש"ח</span></div>
+                                    <div className="overflow-x-auto custom-scrollbar pb-2">
+                                        <table className="w-full text-sm text-right">
+                                            <thead>
+                                                <tr className="bg-gray-50 text-gray-600 border-b border-gray-200">
+                                                    <th className="p-3 font-bold rounded-tr-lg">שנה</th>
+                                                    <th className="p-3 font-bold">שווי נכס</th>
+                                                    <th className="p-3 font-bold">יתרת חוב</th>
+                                                    <th className="p-3 font-bold text-blue-600">הון בקנייה (Net)</th>
+                                                    <th className="p-3 font-bold text-purple-600">הון בשכירות (Net)</th>
+                                                    <th className="p-3 font-bold">הפרש</th>
+                                                    <th className="p-3 font-bold text-xs rounded-tl-lg">תזרים חודשי (ממוצע)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {results.yearlyData.map((row, idx) => {
+                                                    const isBuyWinner = row.netWorthBuy > row.netWorthRent;
+                                                    const gap = row.netWorthBuy - row.netWorthRent;
+                                                    return (
+                                                        <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                                                            <td className="p-3 font-mono text-gray-500">{row.year}</td>
+                                                            <td className="p-3">{formatILS(row.propValue)}</td>
+                                                            <td className="p-3 text-red-400">-{formatILS(row.loanBalance)}</td>
+                                                            <td className={`p-3 font-bold ${isBuyWinner ? 'text-green-600 bg-green-50' : 'text-gray-700'}`}>{formatILS(row.netWorthBuy)}</td>
+                                                            <td className={`p-3 font-bold ${!isBuyWinner ? 'text-green-600 bg-green-50' : 'text-gray-700'}`}>{formatILS(row.netWorthRent)}</td>
+                                                            <td className="p-3 dir-ltr text-right"><span className={`text-xs px-2 py-1 rounded ${gap > 0 ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{gap > 0 ? 'קניה +' : 'שכירות +'}{formatILS(Math.abs(gap))}</span></td>
+                                                            <td className="p-3 text-xs text-gray-400"><div>ק: {formatILS(row.monthlyOutflowBuy)}</div><div>ש: {formatILS(row.monthlyOutflowRent)}</div></td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {/* --- TAB 5: INSIGHTS & RESILIENCE --- */}
                         {activeTab === 5 && (
                             <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
@@ -1018,8 +1058,8 @@
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                                     {/* Metric 1: Financial Freedom */}
                                     <InsightCard title="מדד החופש הכלכלי" icon={Unlock} colorClass="bg-gradient-freedom" value={<div className="flex flex-col"><div className="flex justify-between items-center text-sm font-normal text-gray-600 mb-1"><span>קנייה (חודשי שרידות):</span><span className="font-bold">{buyerFreedomMonths} חודשים</span></div><div className="w-full bg-gray-200 rounded-full h-2 mb-3"><div className="bg-green-600 h-2 rounded-full" style={{ width: `${Math.min(100, (buyerFreedomMonths/36)*100)}%` }}></div></div><div className="flex justify-between items-center text-sm font-normal text-gray-600 mb-1"><span>שכירות (חודשי שרידות):</span><span className="font-bold">{renterFreedomMonths} חודשים</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-purple-600 h-2 rounded-full" style={{ width: `${Math.min(100, (renterFreedomMonths/36)*100)}%` }}></div></div></div>} subtext="כמה זמן תוכלו להתקיים מההון הנזיל בלבד? בקנייה אתם עשירים יותר, אך הנזילות נמוכה." footer={buyerFreedomMonths < 3 ? "אזהרה: נזילות נמוכה מאוד בקנייה!" : "בקנייה, רוב הכסף 'כלוא' בקירות."} />
-                                    {/* Metric 2: Point of No Return - Updated Definition */}
-                                    <InsightCard title="נקודת האל-חזור" icon={Hourglass} colorClass="bg-gradient-time" value={recoveredEntryYear ? `שנה ${recoveredEntryYear}` : "לא בטווח"} subtext="מתי עליית ערך הדירה מכסה את הוצאות הכניסה החד-פעמיות (מס, שיפוץ, עו''ד)?" footer={recoveredEntryYear ? `לפני שנה ${recoveredEntryYear}, מכירת הדירה תגרור הפסד בגלל עלויות הכניסה.` : "בטווח הנבחר, עלויות הכניסה (מס/שיפוץ) עדיין לא כוסו ע''י עליית הערך."} />
+                                    {/* Metric 2: Point of No Return */}
+                                    <InsightCard title="נקודת האל-חזור" icon={Hourglass} colorClass="bg-gradient-time" value={recoveredEntryYear ? `שנה ${recoveredEntryYear}` : "לא בטווח"} subtext="מתי עליית ערך הדירה מכסה סוף סוף את עלויות הכניסה (מס, עו''ד, שיפוץ)?" footer={recoveredEntryYear ? `לפני שנה ${recoveredEntryYear}, מכירת הדירה תגרור הפסד ריאלי.` : "בטווח הנבחר, עלויות הכניסה עדיין לא כוסו במלואן."} />
                                     {/* Metric 3: Liquidity Stress Score */}
                                     <InsightCard title="מדד חנק נזילות" icon={Droplets} colorClass="bg-gradient-stress" value={<div className="flex items-center space-x-4 space-x-reverse"><div className="flex flex-col items-center"><span className={`text-2xl font-bold ${stressScoreBuy > 50 ? 'text-red-600' : 'text-green-600'}`}>{stressScoreBuy}</span><span className="text-xs text-gray-500">קנייה</span></div><div className="h-8 w-px bg-gray-300"></div><div className="flex flex-col items-center"><span className={`text-2xl font-bold ${stressScoreRent > 50 ? 'text-red-600' : 'text-green-600'}`}>{stressScoreRent}</span><span className="text-xs text-gray-500">שכירות</span></div></div>} subtext="ציון סיכון (0-100). האם המשכנתא גדולה על ההכנסה? האם תיק ההשקעות מתרוקן?" footer={stressScoreRent > 80 ? "בשכירות: סכנה גבוהה להתרוקנות התיק!" : stressScoreBuy > 50 ? "בקנייה: המשכנתא חונקת את התזרים." : "מצב הנזילות נראה יציב."} />
                                     {/* Metric 4: Optionality Score */}
