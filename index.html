@@ -76,7 +76,6 @@
         const Compass = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></IconBase>;
         const Hourglass = (props) => <IconBase {...props}><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></IconBase>;
         const ShieldCheck = (props) => <IconBase {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></IconBase>;
-        const Hammer = (props) => <IconBase {...props}><path d="m15 12-8.5 8.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 0 1 0-3L12 9"/><path d="M17.64 15 22 10.64"/><path d="m20.91 11.7-1.25-1.25c-.6-.6-.93-1.4-.93-2.25V7.86c0-.55-.45-1-1-1H16.4c-.84 0-1.65-.33-2.25-.93L12.9 4.68c-.6-.6-1.4-.93-2.25-.93H6.86c-.55 0-1 .45-1 1v1.36c0 .84.33 1.65.93 2.25L12 13.64"/><path d="m15 12 1.15-2.3"/></IconBase>;
 
         // --- Defaults ---
         const DEFAULTS = {
@@ -186,7 +185,7 @@
         const calculateResults = (inputs) => {
             const { 
                 loanAmount, purchaseTaxAmount, buyingMiscAmount, brokerageAmount, renovationCost, totalEntryCosts,
-                buyerStartingLiquid, renterStartingLiquid 
+                buyerStartingLiquid, renterStartingLiquid, remainingLiquidEquity 
             } = calculateLoanDetails(inputs);
             
             const monthlyMortgage = calculatePMT(loanAmount, inputs.mortgageInterest, inputs.mortgageTerm);
@@ -212,6 +211,7 @@
             
             let yearRecoveredEntryCosts = null;
 
+            // Handle 0 years case gracefully
             if (totalMonths === 0) {
                  return {
                     buyNetWorth: 0, rentNetWorth: 0, diffNetWorth: 0,
@@ -277,25 +277,30 @@
                     const remainingLoan = calculateRemainingBalance(loanAmount, inputs.mortgageInterest, inputs.mortgageTerm, i);
                     const sellExpenses = currentPropVal * (inputs.sellingExpensesRate / 100);
                     
-                    let buyerLiquid = remainingLiquidEquity * Math.pow(1 + inputs.marketReturn/100, year);
-                    const buyerLiquidGain = Math.max(0, buyerLiquid - remainingLiquidEquity);
-                    const buyerLiquidTax = buyerLiquidGain * (inputs.capitalGainsTax / 100);
-                    buyerLiquid -= buyerLiquidTax;
+                    // Snapshot Logic using current running portfolio values
+                    const currentBuyerGross = buyerSidePortfolio;
+                    const currentBuyerGain = Math.max(0, currentBuyerGross - buyerInvestedPrincipal);
+                    const currentBuyerTax = currentBuyerGain * (inputs.capitalGainsTax / 100);
+                    const currentBuyerNet = currentBuyerGross - currentBuyerTax;
 
-                    const netWorthBuy = currentPropVal - remainingLoan - sellExpenses + buyerLiquid;
+                    const netWorthBuy = currentPropVal - remainingLoan - sellExpenses + currentBuyerNet;
                     
-                    const portGain = Math.max(0, investmentPortfolio - totalInvestedPrincipal);
-                    const portTax = portGain * (inputs.capitalGainsTax / 100);
-                    const netWorthRent = investmentPortfolio - portTax;
+                    const currentRenterGross = investmentPortfolio;
+                    const currentRenterGain = Math.max(0, currentRenterGross - totalInvestedPrincipal);
+                    const currentRenterTax = currentRenterGain * (inputs.capitalGainsTax / 100);
+                    const netWorthRent = currentRenterGross - currentRenterTax;
 
                     yearlyData.push({
                         year, propValue: currentPropVal, loanBalance: remainingLoan,
                         netWorthBuy, netWorthRent, monthlyOutflowBuy: buyerMonthlyOutflow, monthlyOutflowRent: renterMonthlyOutflow,
-                        buyerLiquid: bLiquidNet 
+                        buyerLiquid: currentBuyerNet 
                     });
                     
-                    const capitalGain = currentPropVal - inputs.propertyPrice;
-                    if (yearRecoveredEntryCosts === null && capitalGain > totalEntryCosts) { 
+                    // Recovered Entry Costs Logic:
+                    // EquityUsed = Inputs.equity (if fully used) or partial.
+                    // We check if Net Worth Buy > Initial Equity Used.
+                    const initialEquityUsed = inputs.equity - remainingLiquidEquity;
+                    if (yearRecoveredEntryCosts === null && netWorthBuy > initialEquityUsed) { 
                         yearRecoveredEntryCosts = year;
                     }
                 }
@@ -381,12 +386,17 @@
             const buyMonthly = results.monthlyMortgage + maintMonthlyNow;
             const rentMonthly = inputs.currentRent;
 
+            // --- KEY CHANGE: Include Portfolio Yield in Income ---
             const netSalary = Math.max(1, inputs.netMonthlyIncome || 0); 
+            // Calculate monthly passive income from liquid portfolio (pre-tax approx, or use net if conservative)
+            // We use simple annual yield / 12. 
             const liquidTotal = (inputs.liquidPortfolio || 0) + (loanDetails.remainingLiquidEquity || 0);
             const monthlyPassiveIncome = liquidTotal * (inputs.marketReturn / 100 / 12);
             
+            // Effective Total Monthly Income for DTI purposes
             const totalMonthlyIncome = netSalary + monthlyPassiveIncome;
 
+            // Recalculate DTI with Total Income
             const dsrBuy = totalMonthlyIncome > 0 ? (buyMonthly / totalMonthlyIncome) * 100 : 999;
             const dsrRent = totalMonthlyIncome > 0 ? (rentMonthly / totalMonthlyIncome) * 100 : 999;
 
@@ -397,13 +407,16 @@
             const stressedMortgage = calculatePMT(results.loanAmount, inputs.mortgageInterest + 1.5, inputs.mortgageTerm);
             const stressedBuyMonthly = stressedMortgage + maintMonthlyNow;
             
+            // Stressed DTI (assuming passive income might also drop? let's keep income stable for simplicity or drop it too)
+            // Let's drop passive income by 25% for stress test
             const stressedPassiveIncome = monthlyPassiveIncome * 0.75;
             const stressedTotalIncome = netSalary + stressedPassiveIncome;
             const stressedDSR = stressedTotalIncome > 0 ? (stressedBuyMonthly / stressedTotalIncome) * 100 : 999;
 
-            const scoreDSR = dsrBuy <= 25 ? 'green' : dsrBuy <= 35 ? 'yellow' : 'red'; 
+            const scoreDSR = dsrBuy <= 25 ? 'green' : dsrBuy <= 35 ? 'yellow' : 'red'; // Slightly relaxed due to asset backing
             let scoreRunway = 'green';
             if (deltaMonthly > 0) {
+                // If you have huge assets, runway matters less if it's > 5 years
                 scoreRunway = runwayMonths >= 60 ? 'green' : runwayMonths >= 24 ? 'yellow' : 'red';
             }
 
@@ -416,6 +429,7 @@
             if (scoreDSR !== 'green') { conditions.push(`להוריד יחס החזר (כולל הכנסה מהתיק) מתחת ל-25% (כרגע: ${formatPct(dsrBuy)}).`); }
             if (deltaMonthly > 0 && scoreRunway !== 'green') { conditions.push(`להגדיל כרית נזילות שתכסה לפחות 24-36 חודשי "דלתא תזרים".`); }
             
+            // New Condition about Portfolio
             if (monthlyPassiveIncome > 2000) {
                 conditions.push(`שים לב: התיק שלך מייצר ${formatILS(monthlyPassiveIncome)} בחודש. זה מאפשר לך לקחת יותר סיכון במשכנתא.`);
             }
@@ -423,7 +437,7 @@
             const tonePack = {
                 soft: { title: 'אם זה היה חבר שלי - בגישה רגועה', openerRent: 'עם גב כלכלי כזה, אין לחץ לקנות. התיק עובד בשבילך.', openerBuy: 'יש לך גב חזק מהתיק, אז הקנייה בטוחה יחסית גם אם היא יקרה.' },
                 sharp: { title: 'אם זה היה חבר שלי - האמת הישירה', openerRent: 'התיק שלך הוא מכונת כסף. למה לקבור אותו בקירות? תמשיך לשכור.', openerBuy: 'אתה קונה כי בא לך, לא כי צריך. התיק שלך משלם את המשכנתא, אז תהנה.' },
-                hard: { title: 'אם זה היה חבר שלי - בלי פילטרים', openerRent: 'אל תקנה לחץ. אתה יכול להרשות לעצמך דירה - אבל אתה לא חייב להרשות לעצמך סיכון.', openerBuy: 'תקנה. התיק מחזיק אותך. מקסימום תמכור חלק מהמניות.' }
+                hard: { title: 'אם זה היה חבר שלי - בלי פילטרים', openerRent: 'אל תהרוג את האווזה שמטילה ביצי זהב (התיק שלך) בשביל 4 קירות.', openerBuy: 'תקנה. התיק מחזיק אותך. מקסימום תמכור חלק מהמניות.' }
             }[tone];
 
             let verdictKey = 'balanced';
@@ -439,6 +453,7 @@
             };
 
             const reasons = [];
+            // Updated Reason with Total Income context
             reasons.push(`יחס החזר מהכנסה כוללת (שכר + תיק): ${formatPct(dsrBuy)}.`);
             if (monthlyPassiveIncome > 0) {
                  const coverage = (monthlyPassiveIncome / results.monthlyMortgage) * 100;
@@ -594,7 +609,7 @@
                 const stressBuyTotal = baseline + stressBuyHousing;
                 const stressMonths = stressBuyTotal > 0 ? (stressLiquid / stressBuyTotal) : null;
 
-                const safeDTI = 0.35; 
+                const safeDTI = 0.35; // Increased safety threshold because we include asset backing
                 const targetMonths = Math.max(0, inputs.targetEmergencyMonths || 0);
 
                 const flags = {
@@ -721,7 +736,7 @@
                         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
                             <div className="flex items-center space-x-2 space-x-reverse">
                                 <Building className="text-blue-600" size={28} />
-                                <div className="mr-2"><h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1><span className="text-xs text-gray-500">מהדורה מקצועית v27</span></div>
+                                <div className="mr-2"><h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1><span className="text-xs text-gray-500">מהדורה מקצועית v29</span></div>
                             </div>
                             <nav className="flex space-x-1 space-x-reverse bg-gray-100 p-1 rounded-lg overflow-x-auto">
                                 {[{ id: 1, label: 'סימולטור', icon: Home }, { id: 2, label: 'מינוף', icon: TrendingUp }, { id: 3, label: 'תמהיל', icon: PieChart }, { id: 4, label: 'תזרים', icon: Table2 }, { id: 5, label: 'תובנות', icon: Brain }, { id: 6, label: 'אם זה היה חבר שלי', icon: Crown }].map((tab) => (
@@ -870,7 +885,7 @@
                                 </div>
                             </div>
                         )}
-                        {/* Tabs 2-4 logic remains mostly same... */}
+                        {/* Tab 2, 3, 4 logic remains mostly same... */}
                         {activeTab === 2 && (
                             <div className="max-w-3xl mx-auto space-y-6 animate-in slide-in-from-right-4 duration-500">
                                 <div className="bg-white p-8 rounded-xl shadow-sm text-center">
