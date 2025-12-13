@@ -154,7 +154,6 @@
             const monthlyMortgage = calculatePMT(loanAmount, inputs.mortgageInterest, inputs.mortgageTerm);
             const startMaintenance = (inputs.propertyPrice * (inputs.maintenanceCost / 100)) / 12;
             const monthlyHousingCostStart = monthlyMortgage + startMaintenance;
-
             let investmentPortfolio = renterStartingLiquid; 
             let totalInvestedPrincipal = renterStartingLiquid; 
             let buyerSidePortfolio = buyerStartingLiquid;
@@ -554,7 +553,7 @@
                         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
                             <div className="flex items-center space-x-2 space-x-reverse">
                                 <Building className="text-blue-600" size={28} />
-                                <div className="mr-2"><h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1><span className="text-xs text-gray-500">מהדורה מקצועית v40</span></div>
+                                <div className="mr-2"><h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1><span className="text-xs text-gray-500">מהדורה מקצועית v32</span></div>
                             </div>
                             <nav className="flex space-x-1 space-x-reverse bg-gray-100 p-1 rounded-lg overflow-x-auto">
                                 {[{ id: 1, label: 'סימולטור', icon: Home }, { id: 2, label: 'מינוף', icon: TrendingUp }, { id: 3, label: 'תמהיל', icon: PieChart }, { id: 4, label: 'תזרים', icon: Table2 }, { id: 5, label: 'תובנות', icon: Brain }, { id: 6, label: 'חבר', icon: Crown }].map((tab) => (
@@ -592,7 +591,7 @@
                                             <InputField label="משך משכנתא" value={inputs.mortgageTerm} onChange={(v) => handleInputChange('mortgageTerm', v)} type="number" suffix="שנים" inputMode="numeric" />
                                         </div>
                                     </div>
-                                    
+                                    {/* Financial Profile & Market inputs ... */}
                                     <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
                                       <h2 className="text-lg font-bold mb-4 flex items-center text-gray-800">
                                         <Scale className="ml-2 text-blue-500" size={20} /> פרופיל פיננסי
@@ -625,7 +624,6 @@
                                              <InputField label="ריבית משכנתא משוקללת" value={inputs.mortgageInterest} onChange={(v) => handleInputChange('mortgageInterest', v)} suffix="%" type="text" inputMode="decimal" />
                                              {showAdvanced && (
                                                 <div className="pt-3 border-t border-gray-100 mt-3 animate-in fade-in slide-in-from-top-2">
-                                                    <InputField label="אינפלציית שכירות" value={inputs.rentInflation} onChange={(v) => handleInputChange('rentInflation', v)} suffix="%" type="text" inputMode="decimal" />
                                                     <InputField label="עלות תחזוקה שנתית" value={inputs.maintenanceCost} onChange={(v) => handleInputChange('maintenanceCost', v)} suffix="%" type="text" inputMode="decimal" />
                                                     <InputField label="מס רכישה" value={inputs.purchaseTaxRate} onChange={(v) => handleInputChange('purchaseTaxRate', v)} suffix="%" type="text" inputMode="decimal" />
                                                     <InputField label="שיפוץ/התאמות (כניסה)" value={inputs.renovationCost} onChange={(v) => handleInputChange('renovationCost', v)} suffix="₪" tooltip="עלות חד פעמית בכניסה לנכס" type="text" inputMode="numeric" />
@@ -852,6 +850,13 @@
                                         </div>
                                     </div>
                                 </div>
+                                
+                                <div className="flex justify-end">
+                                     <button onClick={triggerRefresh} className="flex items-center text-xs text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1 rounded-full transition-all">
+                                        <RefreshCcw className={`ml-1 ${isRefreshing ? 'animate-spin-slow' : ''}`} size={12} /> וודא סנכרון
+                                    </button>
+                                </div>
+
                                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                                     <div className="text-sm text-gray-600 mb-2">{friendAdvice.opener}</div>
                                     <div className="text-xl font-black text-gray-900">{friendAdvice.verdict}</div>
