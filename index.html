@@ -17,10 +17,7 @@
 
     <style>
         input[type="number"]::-webkit-inner-spin-button,
-        input[type="number"]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -31,21 +28,27 @@
         .bg-gradient-stress { background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%); }
         .bg-gradient-time { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); }
         .bg-gradient-return { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); }
-        /* Friend Tab Gradients */
         .bg-gradient-friend { background: linear-gradient(to left, #1e3a8a, #1e40af); }
+        
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+            animation: spin-slow 1s linear;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo, useEffect } = React;
+        const { useState, useMemo, useEffect, useCallback } = React;
 
         // --- Icons ---
         const IconBase = ({ children, color = "currentColor", size = 24, className = "", ...props }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
         );
-        // Basic Icons
         const Calculator = (props) => <IconBase {...props}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></IconBase>;
         const Home = (props) => <IconBase {...props}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></IconBase>;
         const TrendingUp = (props) => <IconBase {...props}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></IconBase>;
@@ -76,35 +79,32 @@
         const Compass = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></IconBase>;
         const Hourglass = (props) => <IconBase {...props}><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></IconBase>;
         const ShieldCheck = (props) => <IconBase {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></IconBase>;
+        const Play = (props) => <IconBase {...props}><polygon points="5 3 19 12 5 21 5 3"/></IconBase>;
+        const Heart = (props) => <IconBase {...props}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></IconBase>;
+        const Target = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></IconBase>;
+        const Anchor = (props) => <IconBase {...props}><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></IconBase>;
 
-        // --- Defaults ---
-        const DEFAULTS = {
-            // Zeroed out user inputs
-            propertyPrice: 0, 
-            equity: 0, 
-            currentRent: 0, 
-            analysisYears: 0, 
-            mortgageTerm: 0, 
-            
-            // Market Rates
+        // --- Config & Defaults ---
+        const ZERO_DEFAULTS = {
+            propertyPrice: 0, equity: 0, currentRent: 0, analysisYears: 0, mortgageTerm: 0, 
             marketReturn: 7.0, propertyAppreciation: 3.0, rentInflation: 3.0, mortgageInterest: 4.8, 
-            
-            // Taxes & Costs
-            maintenanceCost: 0.15, 
-            purchaseTaxRate: 0.0, 
-            buyingMiscAmount: 40000, 
-            brokerageRate: 1.5, 
+            maintenanceCost: 0.15, purchaseTaxRate: 0.0, buyingMiscAmount: 40000, brokerageRate: 1.5, 
             sellingExpensesRate: 1.5, capitalGainsTax: 25.0, vatRate: 17.0,
-            
-            // Zeroed out Financial Profile
-            netMonthlyIncome: 0,
-            liquidPortfolio: 0,
-            baselineLivingCost: 0,
-            
-            targetEmergencyMonths: 12,
-            stressRateUp: 1.5,
-            stressMarketDown: 25, 
+            netMonthlyIncome: 0, liquidPortfolio: 0, baselineLivingCost: 0,
+            targetEmergencyMonths: 12, stressRateUp: 1.5, stressMarketDown: 25, 
         };
+        const DEFAULTS = ZERO_DEFAULTS;
+
+        const DEMO_DEFAULTS = {
+            propertyPrice: 5500000, equity: 3500000, currentRent: 9000, analysisYears: 10, mortgageTerm: 25, 
+            marketReturn: 7.0, propertyAppreciation: 3.0, rentInflation: 3.0, mortgageInterest: 4.8, 
+            maintenanceCost: 0.15, purchaseTaxRate: 0.0, buyingMiscAmount: 40000, brokerageRate: 1.5, 
+            sellingExpensesRate: 1.5, capitalGainsTax: 25.0, vatRate: 17.0,
+            netMonthlyIncome: 40000, liquidPortfolio: 1500000, baselineLivingCost: 14000,
+            targetEmergencyMonths: 12, stressRateUp: 1.5, stressMarketDown: 25, 
+        };
+
+        const RISK_PARAMS = { safeDTI: 0.35, safeDTI_conservative: 0.30 };
         const TRACK_COLORS = ['bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-green-500', 'bg-pink-500', 'bg-teal-500'];
         const DEFAULT_MIXES = [
             { id: 1, name: "סולידי ויציב", risk: "נמוך", desc: "החזר קבוע, חשיפה מינימלית לשינויים.", tracks: [{ id: 't1', name: 'פריים', percent: 33, rate: 6.0, color: 'bg-blue-500' }, { id: 't2', name: 'קל"צ', percent: 67, rate: 4.8, color: 'bg-purple-500' }] },
@@ -112,240 +112,119 @@
             { id: 3, name: "צמוד מדד (זול)", risk: "גבוה", desc: "החזר התחלתי נמוך, מסוכן.", tracks: [{ id: 't1', name: 'פריים', percent: 33, rate: 6.0, color: 'bg-blue-500' }, { id: 't2', name: 'קל"צ', percent: 17, rate: 4.8, color: 'bg-purple-500' }, { id: 't3', name: 'משתנה', percent: 50, rate: 3.2, color: 'bg-orange-500' }] }
         ];
 
-        // --- Logic Helper Functions ---
-        const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-        const formatPct = (x) => {
-            if (!isFinite(x)) return '0%';
-            return `${Math.round(x * 10) / 10}%`;
-        };
+        // --- Logic Utilities ---
+        const safeNumber = (val, fallback = 0) => { const num = parseFloat(val); return isFinite(num) && !isNaN(num) ? num : fallback; };
+        const formatPct = (x) => `${Math.round(x * 10) / 10}%`;
         const calculatePMT = (principal, annualRate, years) => {
-            if (principal <= 0) return 0;
-            if (years <= 0) return 0; // Protect against 0 term
+            if (principal <= 0 || years <= 0) return 0;
             if (annualRate === 0) return principal / (years * 12);
             const monthlyRate = annualRate / 100 / 12;
             const numberOfPayments = years * 12;
             return (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -numberOfPayments));
         };
         const calculateRemainingBalance = (principal, annualRate, totalYears, monthsPassed) => {
-            if (principal <= 0) return 0;
-            if (totalYears <= 0) return 0; // Protect against 0 term
+            if (principal <= 0 || totalYears <= 0) return 0;
             const totalPayments = totalYears * 12;
             if (monthsPassed >= totalPayments) return 0;
             if (annualRate === 0) { const paid = (principal / totalPayments) * monthsPassed; return Math.max(0, principal - paid); }
             const monthlyRate = annualRate / 100 / 12;
             return principal * ( (Math.pow(1 + monthlyRate, totalPayments) - Math.pow(1 + monthlyRate, monthsPassed)) / (Math.pow(1 + monthlyRate, totalPayments) - 1) );
         };
-        const formatILS = (num) => {
-            if (isNaN(num)) return "₪0";
-            return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(num);
-        };
-        
-        // --- SOURCES & USES LOGIC (FINANCIAL CORE) ---
+        const formatILS = (num) => { if (isNaN(num)) return "₪0"; return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(num); };
+
         const calculateLoanDetails = (inputs) => {
             const purchaseTaxAmount = inputs.propertyPrice * (inputs.purchaseTaxRate / 100);
             const buyingMiscAmount = inputs.buyingMiscAmount; 
             const brokerageAmount = inputs.propertyPrice * (inputs.brokerageRate / 100) * (1 + inputs.vatRate / 100);
             const renovationCost = inputs.renovationCost || 0; 
-            
-            // Total cost to get keys
-            const totalAcquisitionCost = inputs.propertyPrice + purchaseTaxAmount + buyingMiscAmount + brokerageAmount + renovationCost;
-            
-            // Equity Used: Max available equity up to Total Cost. 
-            // Note: Does NOT include liquidPortfolio (that's side money).
-            const equityUsed = Math.min(inputs.equity, totalAcquisitionCost);
-            
-            // Loan needed: The rest
-            const loanAmount = Math.max(0, totalAcquisitionCost - equityUsed);
-            
-            // LTV calc (for display)
-            // Equity first covers Tax+Misc+Reno, then Property Price.
             const totalEntryCosts = purchaseTaxAmount + buyingMiscAmount + brokerageAmount + renovationCost;
+            const totalAcquisitionCost = inputs.propertyPrice + totalEntryCosts;
+            const equityUsed = Math.min(inputs.equity, totalAcquisitionCost);
+            const loanAmount = Math.max(0, totalAcquisitionCost - equityUsed);
             const equityAvailableForProperty = Math.max(0, equityUsed - totalEntryCosts);
             const loanUsedForProperty = Math.max(0, inputs.propertyPrice - equityAvailableForProperty);
-            
-            // Remaining Equity from the specific "Equity" bucket (if user put too much)
             const remainingEquityBucket = Math.max(0, inputs.equity - totalAcquisitionCost);
-            
-            // Total Starting Liquid for Buyer = Side Portfolio + Leftover Equity
-            const buyerStartingLiquid = (inputs.liquidPortfolio || 0) + remainingEquityBucket;
-            
-            // Total Starting Liquid for Renter = Side Portfolio + ALL Equity (since they didn't buy)
-            const renterStartingLiquid = (inputs.liquidPortfolio || 0) + (inputs.equity || 0);
-
-            return { 
-                purchaseTaxAmount, buyingMiscAmount, brokerageAmount, renovationCost, totalEntryCosts,
-                totalAcquisitionCost, equityUsed, loanAmount, loanUsedForProperty, 
-                remainingEquityBucket,
-                remainingLiquidEquity: remainingEquityBucket, // Alias for backward compatibility
-                buyerStartingLiquid, renterStartingLiquid 
-            };
+            const buyerStartingLiquid = safeNumber(inputs.liquidPortfolio) + remainingEquityBucket;
+            const renterStartingLiquid = safeNumber(inputs.liquidPortfolio) + (inputs.equity || 0);
+            return { purchaseTaxAmount, buyingMiscAmount, brokerageAmount, renovationCost, totalEntryCosts, totalAcquisitionCost, equityUsed, loanAmount, loanUsedForProperty, remainingEquityBucket, remainingLiquidEquity: remainingEquityBucket, buyerStartingLiquid, renterStartingLiquid };
         };
 
-        // --- Core Calculation Engine ---
         const calculateResults = (inputs) => {
-            const { 
-                loanAmount, purchaseTaxAmount, buyingMiscAmount, brokerageAmount, renovationCost, totalEntryCosts,
-                buyerStartingLiquid, renterStartingLiquid, remainingLiquidEquity 
-            } = calculateLoanDetails(inputs);
-            
+            const { loanAmount, totalEntryCosts, buyerStartingLiquid, renterStartingLiquid, remainingLiquidEquity, purchaseTaxAmount, buyingMiscAmount, brokerageAmount, renovationCost } = calculateLoanDetails(inputs);
             const monthlyMortgage = calculatePMT(loanAmount, inputs.mortgageInterest, inputs.mortgageTerm);
-            // Maintenance calculated on property value. Approx monthly at start:
             const startMaintenance = (inputs.propertyPrice * (inputs.maintenanceCost / 100)) / 12;
             const monthlyHousingCostStart = monthlyMortgage + startMaintenance;
 
-            // Portfolios start state
             let investmentPortfolio = renterStartingLiquid; 
-            let totalInvestedPrincipal = renterStartingLiquid; // For tax calc baseline
-            
-            // Buyer has a side portfolio (if they had extra liquid cash)
+            let totalInvestedPrincipal = renterStartingLiquid; 
             let buyerSidePortfolio = buyerStartingLiquid;
             let buyerInvestedPrincipal = buyerStartingLiquid;
-
             let currentMonthlyRent = inputs.currentRent;
-            let totalRentPaid = 0;
-            let totalMortgagePaid = 0;
-            let totalMaintenancePaid = 0;
-            let portfolioHitZeroMonth = null;
+            let totalRentPaid = 0; let totalMortgagePaid = 0; let totalMaintenancePaid = 0; let portfolioHitZeroMonth = null;
             const totalMonths = inputs.analysisYears * 12;
             const yearlyData = [];
-            
             let yearRecoveredEntryCosts = null;
 
-            // Handle 0 years case gracefully
-            if (totalMonths === 0) {
-                 return {
-                    buyNetWorth: 0, rentNetWorth: 0, diffNetWorth: 0,
-                    futurePropertyValue: 0, remainingLoanBalance: 0, loanAmount, monthlyMortgage: 0, monthlyHousingCostStart: 0,
-                    totalSunkBuy: 0, totalSunkRent: 0,
-                    breakdownBuy: { interest: 0, maintenance: 0, purchaseTax: 0, buyingMisc: 0, brokerage: 0, renovation: 0, sellingExpenses: 0 },
-                    breakdownRent: { rent: 0 },
-                    capitalGainsTax: 0, portfolioHitZeroMonth: null, sellingExpenses: 0, purchaseTaxAmount: 0, buyingMiscAmount: 0, brokerageAmount: 0, renovationCost: 0,
-                    yearlyData: [], breakEvenYear: null, yearRecoveredEntryCosts: null, buyerSidePortfolio: 0,
-                    renterPortfolioGross: 0, buyerSidePortfolioGross: 0, netWorthGap: 0
-                };
-            }
+            if (totalMonths === 0) return { buyNetWorth: 0, rentNetWorth: 0, diffNetWorth: 0, netWorthGap: 0, futurePropertyValue: 0, remainingLoanBalance: 0, loanAmount: loanAmount, monthlyMortgage: 0, monthlyHousingCostStart: 0, totalSunkBuy: 0, totalSunkRent: 0, breakdownBuy: { interest: 0, maintenance: 0, purchaseTax: 0, buyingMisc: 0, brokerage: 0, renovation: 0, sellingExpenses: 0 }, breakdownRent: { rent: 0 }, taxes: { renter: 0, buyer: 0 }, portfolioHitZeroMonth: null, sellingExpenses: 0, yearlyData: [], breakEvenYear: null, yearRecoveredEntryCosts: null, renterPortfolioGross: 0, buyerSidePortfolioGross: 0 };
 
             for (let i = 1; i <= totalMonths; i++) {
                 totalRentPaid += currentMonthlyRent;
-                
-                // Mortgage Logic
                 let currentMonthMortgage = (i <= inputs.mortgageTerm * 12) ? monthlyMortgage : 0;
                 totalMortgagePaid += currentMonthMortgage;
-
-                // Maintenance Logic
                 const currentPropVal = inputs.propertyPrice * Math.pow(1 + inputs.propertyAppreciation/100, i/12);
                 const monthlyMaintenance = currentPropVal * (inputs.maintenanceCost / 100 / 12);
                 totalMaintenancePaid += monthlyMaintenance;
-
-                // Cashflows
                 const buyerMonthlyOutflow = currentMonthMortgage + monthlyMaintenance;
                 const renterMonthlyOutflow = currentMonthlyRent;
-                
-                // Difference: Positive means Buyer pays MORE (Renter saves). Negative means Buyer pays LESS.
                 const difference = buyerMonthlyOutflow - renterMonthlyOutflow;
                 
-                // --- Update Renter Portfolio ---
                 investmentPortfolio *= (1 + inputs.marketReturn / 100 / 12);
-                
-                if (difference > 0) {
-                    // Buyer pays more -> Renter saves the difference
-                    investmentPortfolio += difference;
-                    totalInvestedPrincipal += difference;
-                } else {
-                    // Rent is more expensive -> Renter withdraws difference from portfolio
-                    investmentPortfolio += difference; // difference is negative
-                    // Fix: Reduce principal on withdrawal (clamped to 0) to avoid artificial tax drag
-                    totalInvestedPrincipal = Math.max(0, totalInvestedPrincipal + difference);
-                }
-                
-                if (investmentPortfolio < 0) { investmentPortfolio = 0; if (portfolioHitZeroMonth === null) portfolioHitZeroMonth = i; }
+                if (difference > 0) { investmentPortfolio += difference; totalInvestedPrincipal += difference; } 
+                else { investmentPortfolio += difference; totalInvestedPrincipal = Math.max(0, totalInvestedPrincipal + difference); }
+                if (investmentPortfolio < 0 && portfolioHitZeroMonth === null) portfolioHitZeroMonth = i;
 
-                // --- Update Buyer Side Portfolio ---
-                // Buyer side portfolio just grows (passive), unless we want to simulate "Buyer saves if Rent > Buy".
-                // Fairness: If Buy < Rent (diff < 0), Buyer has EXTRA cash. Should invest it.
                 buyerSidePortfolio *= (1 + inputs.marketReturn / 100 / 12);
-                if (difference < 0) {
-                     // Buyer pays LESS than renter. To match "wealth accumulation potential", buyer invests savings.
-                     const savings = Math.abs(difference);
-                     buyerSidePortfolio += savings;
-                     buyerInvestedPrincipal += savings;
-                }
+                if (difference < 0) { const savings = Math.abs(difference); buyerSidePortfolio += savings; buyerInvestedPrincipal += savings; }
                 
-                // Snapshot at year end
                 if (i % 12 === 0) {
                     const year = i / 12;
                     const remainingLoan = calculateRemainingBalance(loanAmount, inputs.mortgageInterest, inputs.mortgageTerm, i);
                     const sellExpenses = currentPropVal * (inputs.sellingExpensesRate / 100);
-                    
-                    // Snapshot Logic using current running portfolio values
-                    const currentBuyerGross = buyerSidePortfolio;
-                    const currentBuyerGain = Math.max(0, currentBuyerGross - buyerInvestedPrincipal);
-                    const currentBuyerTax = currentBuyerGain * (inputs.capitalGainsTax / 100);
-                    const currentBuyerNet = currentBuyerGross - currentBuyerTax;
-
-                    const netWorthBuy = currentPropVal - remainingLoan - sellExpenses + currentBuyerNet;
-                    
-                    const currentRenterGross = investmentPortfolio;
-                    const currentRenterGain = Math.max(0, currentRenterGross - totalInvestedPrincipal);
-                    const currentRenterTax = currentRenterGain * (inputs.capitalGainsTax / 100);
-                    const netWorthRent = currentRenterGross - currentRenterTax;
-
-                    yearlyData.push({
-                        year, propValue: currentPropVal, loanBalance: remainingLoan,
-                        netWorthBuy, netWorthRent, monthlyOutflowBuy: buyerMonthlyOutflow, monthlyOutflowRent: renterMonthlyOutflow,
-                        buyerLiquid: currentBuyerNet 
-                    });
-                    
-                    // Recovered Entry Costs Logic:
-                    // EquityUsed = Inputs.equity (if fully used) or partial.
-                    // We check if Net Worth Buy > Initial Equity Used.
+                    const bGain = Math.max(0, buyerSidePortfolio - buyerInvestedPrincipal);
+                    const bTax = bGain * (inputs.capitalGainsTax / 100);
+                    const bNet = buyerSidePortfolio - bTax;
+                    const netWorthBuy = currentPropVal - remainingLoan - sellExpenses + bNet;
+                    const rGain = Math.max(0, investmentPortfolio - totalInvestedPrincipal);
+                    const rTax = rGain * (inputs.capitalGainsTax / 100);
+                    const netWorthRent = investmentPortfolio - rTax;
+                    yearlyData.push({ year, propValue: currentPropVal, loanBalance: remainingLoan, netWorthBuy, netWorthRent, monthlyOutflowBuy: buyerMonthlyOutflow, monthlyOutflowRent: renterMonthlyOutflow, buyerLiquid: bNet });
                     const initialEquityUsed = inputs.equity - remainingLiquidEquity;
-                    if (yearRecoveredEntryCosts === null && netWorthBuy > initialEquityUsed) { 
-                        yearRecoveredEntryCosts = year;
-                    }
+                    if (yearRecoveredEntryCosts === null && netWorthBuy > initialEquityUsed) { yearRecoveredEntryCosts = year; }
                 }
                 if (i % 12 === 0) currentMonthlyRent *= (1 + inputs.rentInflation / 100);
             }
 
-            // Final Totals
             const futurePropertyValue = inputs.propertyPrice * Math.pow(1 + inputs.propertyAppreciation / 100, inputs.analysisYears);
             const remainingLoanBalance = calculateRemainingBalance(loanAmount, inputs.mortgageInterest, inputs.mortgageTerm, totalMonths);
             const sellingExpenses = futurePropertyValue * (inputs.sellingExpensesRate / 100);
-            
-            // Buyer Side Liquid Final
-            const buyerSidePortfolioGross = buyerSidePortfolio;
             const bGain = Math.max(0, buyerSidePortfolio - buyerInvestedPrincipal);
             const bTax = bGain * (inputs.capitalGainsTax / 100);
             const buyerLiquidFinal = buyerSidePortfolio - bTax;
-
             const buyNetWorth = futurePropertyValue - remainingLoanBalance - sellingExpenses + buyerLiquidFinal;
-
-            // Renter Liquid Final
-            const renterPortfolioGross = investmentPortfolio;
             const rGain = Math.max(0, investmentPortfolio - totalInvestedPrincipal);
             const rTax = rGain * (inputs.capitalGainsTax / 100);
             const rentNetWorth = investmentPortfolio - rTax;
-
             const principalReduced = loanAmount - remainingLoanBalance;
             const totalInterestPaid = Math.max(0, totalMortgagePaid - principalReduced);
             const totalSunkBuy = totalInterestPaid + totalMaintenancePaid + totalEntryCosts + sellingExpenses;
-
             const breakEven = yearlyData.find(y => y.netWorthBuy >= y.netWorthRent);
             const breakEvenYear = breakEven ? breakEven.year : null;
             const netWorthGap = buyNetWorth - rentNetWorth;
             
             return {
-                buyNetWorth, rentNetWorth, 
-                netWorthGap,
-                diffNetWorth: Math.abs(netWorthGap),
-                futurePropertyValue, remainingLoanBalance, loanAmount, monthlyMortgage, monthlyHousingCostStart,
-                totalSunkBuy, totalSunkRent: totalRentPaid,
+                buyNetWorth, rentNetWorth, netWorthGap, diffNetWorth: Math.abs(netWorthGap), futurePropertyValue, remainingLoanBalance, loanAmount, monthlyMortgage, monthlyHousingCostStart, totalSunkBuy, totalSunkRent: totalRentPaid,
                 breakdownBuy: { interest: totalInterestPaid, maintenance: totalMaintenancePaid, purchaseTax: purchaseTaxAmount, buyingMisc: buyingMiscAmount, brokerage: brokerageAmount, renovation: renovationCost, sellingExpenses },
-                breakdownRent: { rent: totalRentPaid },
-                capitalGainsTax: rTax, portfolioHitZeroMonth, sellingExpenses, purchaseTaxAmount, buyingMiscAmount, brokerageAmount, renovationCost,
-                yearlyData, breakEvenYear, yearRecoveredEntryCosts, 
-                buyerSidePortfolio: buyerLiquidFinal,
-                buyerSidePortfolioGross, renterPortfolioGross
+                breakdownRent: { rent: totalRentPaid }, taxes: { renter: rTax, buyer: bTax }, portfolioHitZeroMonth, sellingExpenses, yearlyData, breakEvenYear, yearRecoveredEntryCosts, buyerSidePortfolio: buyerLiquidFinal, buyerSidePortfolioGross: buyerSidePortfolio, renterPortfolioGross: investmentPortfolio
             };
         };
 
@@ -353,29 +232,22 @@
             if (baseInputs.analysisYears <= 0) return [];
             const base = calculateResults(baseInputs);
             const baseScore = base.buyNetWorth - base.rentNetWorth; 
-
             const params = [
                 { key: 'mortgageInterest', label: 'ריבית משכנתא', delta: 1.0, unit: '%' },
                 { key: 'marketReturn', label: 'תשואה בשוק ההון', delta: 2.0, unit: '%' },
                 { key: 'propertyAppreciation', label: 'עליית ערך הנכס', delta: 1.0, unit: '%' },
                 { key: 'rentInflation', label: 'אינפלציית שכירות', delta: 1.0, unit: '%' },
             ];
-
             const items = params.map(p => {
                 const upInputs = { ...baseInputs, [p.key]: (Number(baseInputs[p.key]) || 0) + p.delta };
                 const dnInputs = { ...baseInputs, [p.key]: Math.max(0, (Number(baseInputs[p.key]) || 0) - p.delta) };
-                
                 const up = calculateResults(upInputs);
                 const dn = calculateResults(dnInputs);
-
                 const upScore = up.buyNetWorth - up.rentNetWorth;
                 const dnScore = dn.buyNetWorth - dn.rentNetWorth;
-                
                 const impact = Math.max(Math.abs(upScore - baseScore), Math.abs(dnScore - baseScore));
-
                 return { ...p, impact, upDeltaScore: upScore - baseScore, dnDeltaScore: dnScore - baseScore };
             });
-
             items.sort((a, b) => b.impact - a.impact);
             return items;
         };
@@ -385,93 +257,124 @@
             const maintMonthlyNow = (propNow * (inputs.maintenanceCost / 100)) / 12;
             const buyMonthly = results.monthlyMortgage + maintMonthlyNow;
             const rentMonthly = inputs.currentRent;
-
-            // --- KEY CHANGE: Include Portfolio Yield in Income ---
             const netSalary = Math.max(1, inputs.netMonthlyIncome || 0); 
-            // Calculate monthly passive income from liquid portfolio (pre-tax approx, or use net if conservative)
-            // We use simple annual yield / 12. 
             const liquidTotal = (inputs.liquidPortfolio || 0) + (loanDetails.remainingLiquidEquity || 0);
             const monthlyPassiveIncome = liquidTotal * (inputs.marketReturn / 100 / 12);
-            
-            // Effective Total Monthly Income for DTI purposes
             const totalMonthlyIncome = netSalary + monthlyPassiveIncome;
-
-            // Recalculate DTI with Total Income
             const dsrBuy = totalMonthlyIncome > 0 ? (buyMonthly / totalMonthlyIncome) * 100 : 999;
             const dsrRent = totalMonthlyIncome > 0 ? (rentMonthly / totalMonthlyIncome) * 100 : 999;
-
             const deltaMonthly = buyMonthly - rentMonthly; 
             const runwayMonths = deltaMonthly > 0 ? (liquidTotal / deltaMonthly) : Infinity;
-
-            const stressedLiquid = liquidTotal * 0.75;
             const stressedMortgage = calculatePMT(results.loanAmount, inputs.mortgageInterest + 1.5, inputs.mortgageTerm);
-            const stressedBuyMonthly = stressedMortgage + maintMonthlyNow;
-            
-            // Stressed DTI (assuming passive income might also drop? let's keep income stable for simplicity or drop it too)
-            // Let's drop passive income by 25% for stress test
-            const stressedPassiveIncome = monthlyPassiveIncome * 0.75;
-            const stressedTotalIncome = netSalary + stressedPassiveIncome;
-            const stressedDSR = stressedTotalIncome > 0 ? (stressedBuyMonthly / stressedTotalIncome) * 100 : 999;
-
-            const scoreDSR = dsrBuy <= 25 ? 'green' : dsrBuy <= 35 ? 'yellow' : 'red'; // Slightly relaxed due to asset backing
+            const stressedLiquid = (inputs.liquidPortfolio || 0) * 0.75;
+            const scoreDSR = dsrBuy <= 25 ? 'green' : dsrBuy <= 35 ? 'yellow' : 'red'; 
             let scoreRunway = 'green';
-            if (deltaMonthly > 0) {
-                // If you have huge assets, runway matters less if it's > 5 years
-                scoreRunway = runwayMonths >= 60 ? 'green' : runwayMonths >= 24 ? 'yellow' : 'red';
-            }
-
+            if (deltaMonthly > 0) { scoreRunway = runwayMonths >= 36 ? 'green' : runwayMonths >= 18 ? 'yellow' : 'red'; }
             const monthlyPremium = inputs.analysisYears > 0 ? results.diffNetWorth / (inputs.analysisYears * 12) : 0;
             const rentWins = results.rentNetWorth > results.buyNetWorth;
-
             const reds = [scoreDSR, scoreRunway].filter(x => x === 'red').length;
-            
             const conditions = [];
             if (scoreDSR !== 'green') { conditions.push(`להוריד יחס החזר (כולל הכנסה מהתיק) מתחת ל-25% (כרגע: ${formatPct(dsrBuy)}).`); }
-            if (deltaMonthly > 0 && scoreRunway !== 'green') { conditions.push(`להגדיל כרית נזילות שתכסה לפחות 24-36 חודשי "דלתא תזרים".`); }
-            
-            // New Condition about Portfolio
-            if (monthlyPassiveIncome > 2000) {
-                conditions.push(`שים לב: התיק שלך מייצר ${formatILS(monthlyPassiveIncome)} בחודש. זה מאפשר לך לקחת יותר סיכון במשכנתא.`);
-            }
-
+            if (deltaMonthly > 0 && scoreRunway !== 'green') { conditions.push(`להגדיל כרית נזילות שתכסה לפחות 24 חודשי הפרש תזרים.`); }
+            if (monthlyPassiveIncome > 2000) { conditions.push(`שים לב: התיק שלך מייצר ${formatILS(monthlyPassiveIncome)} בחודש. זה מאפשר לך לקחת יותר סיכון במשכנתא.`); }
             const tonePack = {
                 soft: { title: 'אם זה היה חבר שלי - בגישה רגועה', openerRent: 'עם גב כלכלי כזה, אין לחץ לקנות. התיק עובד בשבילך.', openerBuy: 'יש לך גב חזק מהתיק, אז הקנייה בטוחה יחסית גם אם היא יקרה.' },
                 sharp: { title: 'אם זה היה חבר שלי - האמת הישירה', openerRent: 'התיק שלך הוא מכונת כסף. למה לקבור אותו בקירות? תמשיך לשכור.', openerBuy: 'אתה קונה כי בא לך, לא כי צריך. התיק שלך משלם את המשכנתא, אז תהנה.' },
                 hard: { title: 'אם זה היה חבר שלי - בלי פילטרים', openerRent: 'אל תהרוג את האווזה שמטילה ביצי זהב (התיק שלך) בשביל 4 קירות.', openerBuy: 'תקנה. התיק מחזיק אותך. מקסימום תמכור חלק מהמניות.' }
             }[tone];
-
             let verdictKey = 'balanced';
             if (reds >= 1 && rentWins) verdictKey = 'rent';
             else if (!rentWins && reds === 0) verdictKey = 'buy';
             else verdictKey = rentWins ? 'rent' : 'conditional';
-
             const oneLiners = {
                 rent: 'בשורה התחתונה: השכירות והתיק מנצחים. תשמור על הנזילות.',
                 buy: 'בשורה התחתונה: יש לך אור ירוק לקנות. התיק והשכר תומכים בזה.',
                 conditional: 'בשורה התחתונה: אפשר לקנות, אבל בזהירות. אל תבנה רק על התיק.',
                 balanced: 'בשורה התחתונה: תיקו. ההחלטה היא רגשית נטו - התיק נותן לך את הפריבילגיה לבחור.'
             };
-
             const reasons = [];
-            // Updated Reason with Total Income context
             reasons.push(`יחס החזר מהכנסה כוללת (שכר + תיק): ${formatPct(dsrBuy)}.`);
             if (monthlyPassiveIncome > 0) {
-                 const coverage = (monthlyPassiveIncome / results.monthlyMortgage) * 100;
+                 const coverage = results.monthlyMortgage > 0 ? (monthlyPassiveIncome / results.monthlyMortgage) * 100 : 100;
                  if (coverage >= 100) reasons.push(`נתון מדהים: התיק הנזיל מייצר מספיק כדי לשלם את כל המשכנתא (${formatPct(coverage)} כיסוי)!`);
                  else reasons.push(`התיק הנזיל משלם עבורך ${formatPct(coverage)} מהמשכנתא כל חודש.`);
             }
-            
             reasons.push(deltaMonthly > 0 ? `הקנייה דורשת תוספת תזרים של ${formatILS(deltaMonthly)}, שיכולה להגיע מהתיק.` : `הקנייה זולה יותר תזרימית מהשכירות.`);
             reasons.push(rentWins ? `כלכלית נטו: השכירות מנצחת ב-${formatILS(results.diffNetWorth)}.` : `כלכלית נטו: הקנייה מנצחת ב-${formatILS(results.diffNetWorth)}.`);
-
             const actions = [];
             actions.push('המשך לנהל את התיק בחוכמה - הוא רשת הביטחון שלך.');
             if (verdictKey === 'buy') actions.push('אם אתה קונה, נסה לא לחסל את כל התיק. תשאיר אותו עובד.');
             else actions.push('בשכירות - הקפד להגדיל את התיק עם העודף התזרימי.');
-
             const badges = [ { label: `יחס החזר כולל: ${formatPct(dsrBuy)}`, color: scoreDSR }, { label: `כיסוי מהתיק: ${formatILS(monthlyPassiveIncome)}/חודש`, color: 'green' } ];
             const opener = rentWins ? tonePack.openerRent : tonePack.openerBuy;
             return { title: tonePack.title, verdict: oneLiners[verdictKey], opener, badges, reasons: reasons.slice(0, 5), actions, conditions };
+        };
+
+        const useFinancialModel = (inputs) => {
+            const loanDetails = useMemo(() => calculateLoanDetails(inputs), [inputs]);
+            const results = useMemo(() => calculateResults(inputs), [inputs]);
+            return { loanDetails, results };
+        };
+
+        const useFinancialProfile = (inputs, results, loanDetails) => {
+            return useMemo(() => {
+                const net = safeNumber(inputs.netMonthlyIncome);
+                const liquid = safeNumber(inputs.liquidPortfolio);
+                const liquidTotal = liquid + (loanDetails.remainingLiquidEquity || 0);
+                const baseline = safeNumber(inputs.baselineLivingCost);
+                const buyHousing = results.monthlyHousingCostStart; 
+                const rentHousing = safeNumber(inputs.currentRent);
+                const monthlyYieldRate = (inputs.marketReturn / 100) / 12;
+                const passiveIncome = liquidTotal * monthlyYieldRate;
+                const effectiveTotalIncome = net + passiveIncome;
+                const dtiBuyConservative = net > 0 ? (buyHousing / net) : null;
+                const dtiBuyEffective = effectiveTotalIncome > 0 ? (buyHousing / effectiveTotalIncome) : null;
+                const surplusBuy = effectiveTotalIncome - (baseline + buyHousing);
+                const surplusRent = effectiveTotalIncome - (baseline + rentHousing);
+                const emergencyMonthsBuy = (baseline + buyHousing) > 0 ? (results.buyerSidePortfolioGross / (baseline + buyHousing)) : 0;
+                const deltaMonthly = buyHousing - rentHousing; 
+                const runwayMonths = deltaMonthly > 0 ? (liquidTotal / deltaMonthly) : Infinity;
+                const stressMortgage = calculatePMT(results.loanAmount, inputs.mortgageInterest + 1.5, inputs.mortgageTerm);
+                const stressLiquid = liquid * (1 - (Math.max(0, inputs.stressMarketDown || 0) / 100));
+                const stressBuyHousing = stressMortgage + (buyHousing - results.monthlyMortgage); 
+                const stressBuyTotal = baseline + stressBuyHousing;
+                const stressMonths = stressBuyTotal > 0 ? (stressLiquid / stressBuyTotal) : null;
+                const safeDTI = 0.35; 
+                const targetMonths = Math.max(0, inputs.targetEmergencyMonths || 0);
+                const flags = { dtiBuyHigh: dtiBuyEffective !== null ? dtiBuyEffective > safeDTI : true, surplusBuyNegative: surplusBuy < 0, emergencyLow: (emergencyMonthsBuy !== null && targetMonths > 0) ? emergencyMonthsBuy < targetMonths : false };
+                let stance = "נייטרלי";
+                let guidance = [];
+                const isRentWinner = results.rentNetWorth > results.buyNetWorth;
+                if (!isRentWinner) {
+                    stance = "קנייה עדיפה כלכלית";
+                    if (flags.dtiBuyHigh) { if (passiveIncome > 1000) guidance.push("עומס הדיור גבוה ביחס לשכר, אך התיק שלך תומך בתזרים."); else guidance.push("עומס דיור גבוה - שקול להגדיל הון עצמי או להאריך תקופה."); }
+                    if (flags.surplusBuyNegative) guidance.push("התזרים החודשי שלילי - תצטרך לממש חלק מהתיק כל חודש.");
+                    if (!flags.dtiBuyHigh && !flags.surplusBuyNegative) guidance.push("החוסן מצוין - גם השכר וגם התיק תומכים בעסקה.");
+                } else {
+                    stance = "שכירות עדיפה כלכלית";
+                    if (passiveIncome > rentHousing) guidance.push("התיק שלך משלם את כל השכירות! זה מצב של חופש כלכלי אמיתי.");
+                    guidance.push("ההון הפנוי בשכירות ממשיך לצמוח מהר יותר מאשר בקירות הבית.");
+                } 
+                if (Math.abs(results.netWorthGap) < 100000) { stance = "תיקו כלכלי"; guidance.push("במצב תיקו, התיק הגדול שלך מאפשר לך לבחור בלב שקט מה שמתאים ללב."); }
+                
+                // Enhanced Metrics
+                let anchorScore = 0;
+                if (results.buyNetWorth > results.rentNetWorth) anchorScore += 50; 
+                if (dtiBuyEffective < 0.3) anchorScore += 30; 
+                if (liquidTotal > inputs.propertyPrice * 0.2) anchorScore += 20; 
+
+                const totalPmt = results.monthlyMortgage * inputs.analysisYears * 12;
+                const forcedSavings = totalPmt > 0 ? ((totalPmt - results.breakdownBuy.interest)/totalPmt)*100 : 0;
+                
+                const controlPremium = !isRentWinner ? 0 : (inputs.analysisYears > 0 ? results.diffNetWorth / (inputs.analysisYears * 12) : 0);
+
+                return {
+                    dtiBuyConservative, dtiBuyEffective, surplusBuy, surplusRent, emergencyMonthsBuy,
+                    stressMortgage, stressedDSR: 0, runwayMonths, passiveIncome, effectiveTotalIncome,
+                    stance, guidance, scoreDSR: dtiBuyEffective <= RISK_PARAMS.safeDTI ? 'green' : 'red',
+                    isRentWinner, anchorScore, forcedSavings, controlPremium
+                };
+            }, [inputs, results, loanDetails]);
         };
 
         // --- Components ---
@@ -553,14 +456,29 @@
             const [activeTab, setActiveTab] = useState(1);
             const [showAdvanced, setShowAdvanced] = useState(false);
             const [viewMode, setViewMode] = useState('netWorth'); 
-            const [inputs, setInputs] = useState(DEFAULTS);
+            const [inputs, setInputs] = useState(ZERO_DEFAULTS);
             const [friendTone, setFriendTone] = useState('sharp');
+
+            const { loanDetails, results } = useFinancialModel(inputs);
+            const profile = useFinancialProfile(inputs, results, loanDetails);
+            const sensitivity = useMemo(() => computeSensitivity(inputs), [inputs]);
+
+            const handleInputChange = (key, value) => setInputs(prev => ({ ...prev, [key]: value }));
+            const monthlyPremium = inputs.analysisYears > 0 ? results.diffNetWorth / (inputs.analysisYears * 12) : 0;
+            const loadDemoData = () => setInputs(DEMO_DEFAULTS);
+            const isZeroState = inputs.propertyPrice === 0 && inputs.equity === 0;
+
             const [userMixes, setUserMixes] = useState(DEFAULT_MIXES);
             const [mixTabLoanAmount, setMixTabLoanAmount] = useState(0); 
             const [mixTabTerm, setMixTabTerm] = useState(25);
             const [isMixCustomized, setIsMixCustomized] = useState(false);
-
-            const loanDetails = useMemo(() => calculateLoanDetails(inputs), [inputs]);
+            
+            // Sync/Refresh animation state
+            const [isRefreshing, setIsRefreshing] = useState(false);
+            const triggerRefresh = () => {
+                setIsRefreshing(true);
+                setTimeout(() => setIsRefreshing(false), 800);
+            };
 
             useEffect(() => {
                 if (!isMixCustomized) {
@@ -569,89 +487,6 @@
                 }
             }, [loanDetails.loanAmount, inputs.mortgageTerm, isMixCustomized]);
 
-            const results = useMemo(() => calculateResults(inputs), [inputs]);
-            
-            const friendAdvice = useMemo(() => {
-                return getFriendAdvice({ inputs, results, loanDetails, tone: friendTone });
-            }, [inputs, results, loanDetails, friendTone]);
-
-            const monthlyPremium = inputs.analysisYears > 0 ? results.diffNetWorth / (inputs.analysisYears * 12) : 0;
-            const isRentWinner = results.rentNetWorth > results.buyNetWorth;
-
-            // --- Profile & Resilience Calculation ---
-            const profile = useMemo(() => {
-                const net = Math.max(0, inputs.netMonthlyIncome || 0);
-                const liquid = Math.max(0, inputs.liquidPortfolio || 0);
-                const baseline = Math.max(0, inputs.baselineLivingCost || 0);
-
-                const buyHousing = (results.monthlyMortgage || 0) + (inputs.propertyPrice * (inputs.maintenanceCost/100/12)); 
-                const rentHousing = (inputs.currentRent || 0);
-                const buyTotalOutflow = baseline + buyHousing;
-                const rentTotalOutflow = baseline + rentHousing;
-
-                // --- Effective DTI with Passive Income ---
-                const monthlyYieldRate = (inputs.marketReturn / 100) / 12;
-                const passiveIncome = liquid * monthlyYieldRate;
-                const effectiveTotalIncome = net + passiveIncome;
-
-                const dtiBuy = effectiveTotalIncome > 0 ? (buyHousing / effectiveTotalIncome) : null;      
-                const dtiRent = effectiveTotalIncome > 0 ? (rentHousing / effectiveTotalIncome) : null;
-                
-                const surplusBuy = effectiveTotalIncome - buyTotalOutflow;
-                const surplusRent = effectiveTotalIncome - rentTotalOutflow;
-
-                const emergencyMonthsBuy = buyTotalOutflow > 0 ? (liquid / buyTotalOutflow) : null;
-                const emergencyMonthsRent = rentTotalOutflow > 0 ? (liquid / rentTotalOutflow) : null;
-
-                const stressMortgage = calculatePMT(results.loanAmount, inputs.mortgageInterest + (inputs.stressRateUp || 0), inputs.mortgageTerm);
-                const stressLiquid = liquid * (1 - (Math.max(0, inputs.stressMarketDown || 0) / 100));
-                const stressBuyHousing = stressMortgage + (buyHousing - results.monthlyMortgage); 
-                const stressBuyTotal = baseline + stressBuyHousing;
-                const stressMonths = stressBuyTotal > 0 ? (stressLiquid / stressBuyTotal) : null;
-
-                const safeDTI = 0.35; // Increased safety threshold because we include asset backing
-                const targetMonths = Math.max(0, inputs.targetEmergencyMonths || 0);
-
-                const flags = {
-                    dtiBuyHigh: dtiBuy !== null ? dtiBuy > safeDTI : true,
-                    surplusBuyNegative: surplusBuy < 0,
-                    emergencyLow: (emergencyMonthsBuy !== null && targetMonths > 0) ? emergencyMonthsBuy < targetMonths : false,
-                };
-                
-                let stance = null;
-                let guidance = [];
-                const buyWins = results.buyNetWorth > results.rentNetWorth;
-                const rentWins = results.rentNetWorth > results.buyNetWorth;
-
-                // Enhanced Guidance Logic
-                if (buyWins) {
-                    stance = "קנייה עדיפה כלכלית";
-                    if (flags.dtiBuyHigh) {
-                        if (passiveIncome > 1000) guidance.push("עומס הדיור גבוה ביחס לשכר, אך התיק שלך תומך בתזרים.");
-                        else guidance.push("עומס דיור גבוה - שקול להגדיל הון עצמי או להאריך תקופה.");
-                    }
-                    if (flags.surplusBuyNegative) guidance.push("התזרים החודשי שלילי - תצטרך לממש חלק מהתיק כל חודש.");
-                    
-                    if (!flags.dtiBuyHigh && !flags.surplusBuyNegative) guidance.push("החוסן מצוין - גם השכר וגם התיק תומכים בעסקה.");
-                } else if (rentWins) {
-                    stance = "שכירות עדיפה כלכלית";
-                    if (passiveIncome > rentHousing) guidance.push("התיק שלך משלם את כל השכירות! זה מצב של חופש כלכלי אמיתי.");
-                    guidance.push("ההון הפנוי בשכירות ממשיך לצמוח מהר יותר מאשר בקירות הבית.");
-                } else {
-                    stance = "תיקו כלכלי";
-                    guidance.push("במצב תיקו, התיק הגדול שלך מאפשר לך לבחור בלב שקט מה שמתאים ללב.");
-                }
-
-                return { 
-                    dtiBuy, dtiRent, surplusBuy, surplusRent, emergencyMonthsBuy, emergencyMonthsRent, 
-                    stressMortgage, stressMonths, stance, guidance, flags, safeDTI, targetMonths,
-                    passiveIncome, effectiveTotalIncome
-                };
-            }, [inputs, results, loanDetails]);
-
-            const sensitivity = useMemo(() => computeSensitivity(inputs), [inputs]);
-
-            const handleInputChange = (key, value) => setInputs(prev => ({ ...prev, [key]: value }));
             const handleTrackChange = (mixId, trackId, field, value) => {
                 setUserMixes(prev => prev.map(mix => {
                     if (mix.id !== mixId) return mix;
@@ -709,26 +544,9 @@
                 );
             };
 
-            // Buyer/Renter Liquid/Burn for Tab 5 Insights
-            const buyerLiquid = results.buyerSidePortfolioGross || 0; // Use GROSS per updated logic
-            const renterLiquid = results.renterPortfolioGross || 0;   // Use GROSS
-            const buyerMonthlyBurn = results.monthlyHousingCostStart || 1; // Include Maint in burn
-            const renterMonthlyBurn = inputs.currentRent || 1;
-            const buyerFreedomMonths = (buyerLiquid / buyerMonthlyBurn).toFixed(1);
-            const renterFreedomMonths = (renterLiquid / renterMonthlyBurn).toFixed(1);
-            const recoveredEntryYear = results.yearRecoveredEntryCosts || "טרם";
-            
-            // Stress Score Calc for Tab 5
-            let stressScoreBuy = 0;
-            let stressScoreRent = 0;
-            const paymentRatio = inputs.currentRent > 0 ? results.monthlyHousingCostStart / inputs.currentRent : 0;
-            if (paymentRatio > 1.4) stressScoreBuy = 75; else if (paymentRatio > 1.1) stressScoreBuy = 40; else stressScoreBuy = 15;
-            if (results.portfolioHitZeroMonth) stressScoreRent = 90; else if (renterLiquid < (inputs.currentRent * 12)) stressScoreRent = 40; else stressScoreRent = 10;
-            
-            const totalEquityBuy = results.buyNetWorth;
-            const liquidRatioBuy = totalEquityBuy > 0 ? (buyerLiquid / totalEquityBuy) * 100 : 0;
-            const optionalityBuy = Math.round(20 + (liquidRatioBuy * 0.5)); 
-            const optionalityRent = 90;
+            const friendAdvice = useMemo(() => {
+                return getFriendAdvice({ inputs, results, loanDetails, tone: friendTone });
+            }, [inputs, results, loanDetails, friendTone]);
 
             return (
                 <div className="min-h-screen bg-gray-50 text-gray-800 font-sans" dir="rtl">
@@ -736,10 +554,10 @@
                         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
                             <div className="flex items-center space-x-2 space-x-reverse">
                                 <Building className="text-blue-600" size={28} />
-                                <div className="mr-2"><h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1><span className="text-xs text-gray-500">מהדורה מקצועית v29</span></div>
+                                <div className="mr-2"><h1 className="text-xl font-bold text-gray-900 leading-none">היועץ הנדל"ני החכם</h1><span className="text-xs text-gray-500">מהדורה מקצועית v40</span></div>
                             </div>
                             <nav className="flex space-x-1 space-x-reverse bg-gray-100 p-1 rounded-lg overflow-x-auto">
-                                {[{ id: 1, label: 'סימולטור', icon: Home }, { id: 2, label: 'מינוף', icon: TrendingUp }, { id: 3, label: 'תמהיל', icon: PieChart }, { id: 4, label: 'תזרים', icon: Table2 }, { id: 5, label: 'תובנות', icon: Brain }, { id: 6, label: 'אם זה היה חבר שלי', icon: Crown }].map((tab) => (
+                                {[{ id: 1, label: 'סימולטור', icon: Home }, { id: 2, label: 'מינוף', icon: TrendingUp }, { id: 3, label: 'תמהיל', icon: PieChart }, { id: 4, label: 'תזרים', icon: Table2 }, { id: 5, label: 'תובנות', icon: Brain }, { id: 6, label: 'חבר', icon: Crown }].map((tab) => (
                                     <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                                         <tab.icon size={16} className="ml-2" /><span className="hidden sm:inline">{tab.label}</span>
                                     </button>
@@ -748,9 +566,21 @@
                         </div>
                     </header>
                     <main className="max-w-6xl mx-auto px-4 py-6 sm:py-8 pb-24">
-                        {/* Tab 1,2,3,4 */}
-                        {activeTab === 1 && (
+                        
+                        {isZeroState && (
+                            <div className="max-w-2xl mx-auto text-center py-20 animate-in fade-in zoom-in-95 duration-500">
+                                <Calculator className="mx-auto text-blue-200 mb-6" size={80} />
+                                <h2 className="text-3xl font-bold text-gray-800 mb-2">ברוכים הבאים ליועץ הנדל"ני</h2>
+                                <p className="text-gray-500 mb-8">הכלי שיעזור לכם לקבל החלטה מושכלת בין קנייה לשכירות, על בסיס נתונים ולא תחושות בטן.</p>
+                                <button onClick={loadDemoData} className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-transform hover:scale-105 flex items-center mx-auto">
+                                    <Play className="ml-2" size={20}/> טען נתונים לדוגמה
+                                </button>
+                            </div>
+                        )}
+
+                        {!isZeroState && activeTab === 1 && (
                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300">
+                                {/* Tab 1 Content */}
                                 <div className="lg:col-span-4 space-y-4">
                                     <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
                                         <h2 className="text-lg font-bold mb-4 flex items-center text-gray-800"><Calculator className="ml-2 text-blue-500" size={20} /> נתוני עסקה</h2>
@@ -786,112 +616,278 @@
 
                                     <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
                                         <div className="flex justify-between items-center mb-4 cursor-pointer" onClick={() => setShowAdvanced(!showAdvanced)}>
-                                            <h2 className="text-lg font-bold flex items-center text-gray-800"><Settings className="ml-2 text-gray-500" size={20} /> מיסוי והוצאות (מתקדם)</h2>
-                                            <span className="text-xs text-blue-600 hover:underline">{showAdvanced ? 'הסתר מתקדם' : 'הצג מתקדם'}</span>
+                                            <h2 className="text-lg font-bold flex items-center text-gray-800"><Settings className="ml-2 text-gray-500" size={20} /> הנחות והגדרות</h2>
+                                            <span className="text-xs text-blue-600 hover:underline">{showAdvanced ? 'הסתר' : 'הצג'}</span>
                                         </div>
                                         <div className="space-y-3">
-                                            <InputField label="תשואה שנתית בשוק ההון" value={inputs.marketReturn} onChange={(v) => handleInputChange('marketReturn', v)} suffix="%" type="text" inputMode="decimal" />
-                                            <InputField label="עליית ערך נכס שנתית" value={inputs.propertyAppreciation} onChange={(v) => handleInputChange('propertyAppreciation', v)} suffix="%" type="text" inputMode="decimal" />
-                                            <InputField label="ריבית משכנתא משוקללת" value={inputs.mortgageInterest} onChange={(v) => handleInputChange('mortgageInterest', v)} suffix="%" type="text" inputMode="decimal" />
-                                            {showAdvanced && (
+                                             <InputField label="תשואה שנתית בשוק ההון" value={inputs.marketReturn} onChange={(v) => handleInputChange('marketReturn', v)} suffix="%" type="text" inputMode="decimal" />
+                                             <InputField label="עליית ערך נכס שנתית" value={inputs.propertyAppreciation} onChange={(v) => handleInputChange('propertyAppreciation', v)} suffix="%" type="text" inputMode="decimal" />
+                                             <InputField label="ריבית משכנתא משוקללת" value={inputs.mortgageInterest} onChange={(v) => handleInputChange('mortgageInterest', v)} suffix="%" type="text" inputMode="decimal" />
+                                             {showAdvanced && (
                                                 <div className="pt-3 border-t border-gray-100 mt-3 animate-in fade-in slide-in-from-top-2">
-                                                    <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">מיסוי ועלויות נלוות</h3>
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <InputField label="אינפלציית שכירות" value={inputs.rentInflation} onChange={(v) => handleInputChange('rentInflation', v)} suffix="%" tooltip="בכמה עולה השכירות כל שנה?" type="text" inputMode="decimal" />
-                                                        <InputField label="עלות תחזוקה שנתית" value={inputs.maintenanceCost} onChange={(v) => handleInputChange('maintenanceCost', v)} suffix="%" tooltip="כאחוז מערך הנכס" type="text" inputMode="decimal" />
-                                                        <InputField label="מס רכישה (כניסה)" value={inputs.purchaseTaxRate} onChange={(v) => handleInputChange('purchaseTaxRate', v)} suffix="%" type="text" inputMode="decimal" />
-                                                        <InputField label="שיפוץ/התאמות (כניסה)" value={inputs.renovationCost} onChange={(v) => handleInputChange('renovationCost', v)} suffix="₪" tooltip="עלות חד פעמית בכניסה לנכס" type="text" inputMode="numeric" />
-                                                        <InputField label="הוצאות עו''ד/שמאות" value={inputs.buyingMiscAmount} onChange={(v) => handleInputChange('buyingMiscAmount', v)} suffix="₪" tooltip="עו''ד, אגרות, שמאות (בכניסה)" type="text" inputMode="numeric" />
-                                                        <InputField label="דמי תיווך (קנייה)" value={inputs.brokerageRate} onChange={(v) => handleInputChange('brokerageRate', v)} suffix="%" tooltip="הוצאה כוללת 17% מע''מ בחישוב" type="text" inputMode="decimal" />
-                                                        <InputField label="הוצאות מכירה" value={inputs.sellingExpensesRate} onChange={(v) => handleInputChange('sellingExpensesRate', v)} suffix="%" tooltip="עו''ד, תיווך ומס שבח במכירה עתידית" type="text" inputMode="decimal" />
-                                                        <InputField label="מס רווחי הון" value={inputs.capitalGainsTax} onChange={(v) => handleInputChange('capitalGainsTax', v)} suffix="%" tooltip="מס משוער אם מממשים בסוף התקופה" type="text" inputMode="decimal" />
-                                                    </div>
+                                                    <InputField label="אינפלציית שכירות" value={inputs.rentInflation} onChange={(v) => handleInputChange('rentInflation', v)} suffix="%" type="text" inputMode="decimal" />
+                                                    <InputField label="עלות תחזוקה שנתית" value={inputs.maintenanceCost} onChange={(v) => handleInputChange('maintenanceCost', v)} suffix="%" type="text" inputMode="decimal" />
+                                                    <InputField label="מס רכישה" value={inputs.purchaseTaxRate} onChange={(v) => handleInputChange('purchaseTaxRate', v)} suffix="%" type="text" inputMode="decimal" />
+                                                    <InputField label="שיפוץ/התאמות (כניסה)" value={inputs.renovationCost} onChange={(v) => handleInputChange('renovationCost', v)} suffix="₪" tooltip="עלות חד פעמית בכניסה לנכס" type="text" inputMode="numeric" />
+                                                    <InputField label="הוצאות עו''ד/שמאות" value={inputs.buyingMiscAmount} onChange={(v) => handleInputChange('buyingMiscAmount', v)} suffix="₪" tooltip="עו''ד, אגרות, שמאות (בכניסה)" type="text" inputMode="numeric" />
+                                                    <InputField label="דמי תיווך (קנייה)" value={inputs.brokerageRate} onChange={(v) => handleInputChange('brokerageRate', v)} suffix="%" tooltip="הוצאה כוללת 17% מע''מ בחישוב" type="text" inputMode="decimal" />
+                                                    <InputField label="הוצאות מכירה" value={inputs.sellingExpensesRate} onChange={(v) => handleInputChange('sellingExpensesRate', v)} suffix="%" tooltip="עו''ד, תיווך ומס שבח במכירה עתידית" type="text" inputMode="decimal" />
+                                                    <InputField label="מס רווחי הון" value={inputs.capitalGainsTax} onChange={(v) => handleInputChange('capitalGainsTax', v)} suffix="%" tooltip="מס משוער אם מממשים בסוף התקופה" type="text" inputMode="decimal" />
                                                 </div>
-                                            )}
+                                             )}
                                         </div>
                                     </div>
                                 </div>
                                 <div className="lg:col-span-8 space-y-6">
-                                    <div className="bg-gray-100 p-1 rounded-lg flex w-fit mx-auto lg:mx-0">
-                                        <button onClick={() => setViewMode('netWorth')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'netWorth' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>מאזן (שווי נקי)</button>
-                                        <button onClick={() => setViewMode('cashFlow')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'cashFlow' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>תזרים (כסף אבוד)</button>
-                                    </div>
-                                    {viewMode === 'netWorth' ? (
-                                        <div className="animate-in fade-in zoom-in-95 duration-300">
-                                            <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6"><h2 className="text-xl font-bold text-blue-900 mb-1">כמה כסף יהיה לכם ביד בעוד {inputs.analysisYears} שנים?</h2><p className="text-sm text-blue-700 opacity-80">חישוב שווי נכסים בניכוי כל ההתחייבויות, המיסים וההוצאות (בהנחת מימוש מלא).</p></div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <ResultCard title="מסלול קניה" value={formatILS(results.buyNetWorth)} subtext="שווי הנכס נטו (בניכוי חוב והוצאות מכירה) + תיק נזיל צדדי" isWinner={results.buyNetWorth > results.rentNetWorth} icon={Home} bottomContent={
-                                                    <div className="text-xs space-y-1 text-gray-500 pt-3 border-t">
-                                                        <div className="flex justify-between font-semibold text-gray-800 mb-1 bg-gray-50 p-1 rounded"><span>סה"כ דיור חודשי (כולל בלאי):</span> <span>{formatILS(results.monthlyHousingCostStart)}</span></div>
-                                                        <div className="flex justify-between text-gray-400"><span>(מתוכם משכנתא בלבד):</span> <span>({formatILS(results.monthlyMortgage)})</span></div>
-                                                        <div className="flex justify-between"><span>שווי נכס עתידי:</span> <span>{formatILS(results.futurePropertyValue)}</span></div>
-                                                        <div className="flex justify-between text-red-400"><span>יתרת משכנתא:</span> <span>-{formatILS(results.remainingLoanBalance)}</span></div>
-                                                        <div className="flex justify-between text-red-400"><span>הוצאות מכירה:</span> <span>-{formatILS(results.sellingExpenses)}</span></div>
-                                                    </div>
-                                                } />
-                                                <ResultCard title="מסלול שכירות" value={formatILS(results.rentNetWorth)} subtext="שווי תיק ההשקעות הכולל (הון עצמי + תיק צדדי) נטו" isWinner={results.rentNetWorth > results.buyNetWorth} icon={TrendingUp} alertContent={results.portfolioHitZeroMonth ? `אזהרה: בחודש ${results.portfolioHitZeroMonth} תיק ההשקעות התרוקן. המודל מניח הזרמת הון חיצוני להמשך תשלום השכירות.` : null} bottomContent={<div className="text-xs space-y-1 text-gray-500 pt-3 border-t"><div className="flex justify-between"><span>סך התיק ברוטו:</span> <span>{formatILS(results.rentNetWorth + results.capitalGainsTax)}</span></div><div className="flex justify-between text-red-400"><span>מס רווחי הון משוער:</span> <span>-{formatILS(results.capitalGainsTax)}</span></div></div>} />
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="animate-in fade-in zoom-in-95 duration-300">
-                                            <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl mb-6 flex justify-between items-center">
-                                                <div><h2 className="text-xl font-bold text-orange-900 mb-1">כמה כסף "נשרף" בדרך?</h2><p className="text-sm text-orange-700 opacity-80">עלויות ששולמו ולא חוזרות (ריבית, שכירות, בלאי, מיסים)</p></div>
-                                                <div className="text-right hidden sm:block"><span className="block text-xs text-gray-500">למרות ההוצאות, נשאר ביד (Net Worth):</span><span className="font-bold text-gray-800">קניה: {formatILS(results.buyNetWorth)} | שכירות: {formatILS(results.rentNetWorth)}</span></div>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <ResultCard title="עלויות במסלול קניה" headerColor="text-red-700" value={formatILS(results.totalSunkBuy)} subtext="סך הוצאות (ריבית, מיסים, תחזוקה, עלויות כניסה/יציאה)" isWinner={results.totalSunkBuy < results.totalSunkRent} icon={DollarSign} bottomContent={<div className="text-xs space-y-1 text-gray-500 pt-3 border-t"><div className="flex justify-between"><span>תשלומי ריבית:</span> <span>{formatILS(results.breakdownBuy.interest)}</span></div><div className="flex justify-between"><span>תחזוקה ובלאי:</span> <span>{formatILS(results.breakdownBuy.maintenance)}</span></div><div className="flex justify-between"><span>מס/עו"ד/תיווך/שיפוץ (כניסה):</span> <span>{formatILS(results.breakdownBuy.purchaseTax + results.breakdownBuy.buyingMisc + results.breakdownBuy.brokerage + results.breakdownBuy.renovation)}</span></div><div className="flex justify-between"><span>הוצאות מכירה (יציאה):</span> <span>{formatILS(results.breakdownBuy.sellingExpenses)}</span></div></div>} />
-                                                <ResultCard title="עלויות במסלול שכירות" headerColor="text-red-700" value={formatILS(results.totalSunkRent)} subtext="סך תשלומי השכירות" isWinner={results.totalSunkRent < results.totalSunkBuy} icon={DollarSign} bottomContent={<div className="text-xs space-y-1 text-gray-500 pt-3 border-t"><div className="flex justify-between"><span>שכירות מצטברת:</span> <span>{formatILS(results.breakdownRent.rent)}</span></div></div>} />
-                                            </div>
-                                        </div>
-                                    )}
                                     <div className="bg-white p-6 rounded-xl shadow-sm mt-4">
                                         <h3 className="font-bold mb-4 text-center text-gray-700">הפער הכלכלי (Net Worth Gap)</h3>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                            <ResultCard title="מסלול קניה" value={formatILS(results.buyNetWorth)} subtext="שווי הנכס נטו (בניכוי חוב והוצאות מכירה) + תיק נזיל צדדי" isWinner={results.buyNetWorth > results.rentNetWorth} icon={Home} bottomContent={
+                                                <div className="text-xs space-y-1 text-gray-500 pt-3 border-t">
+                                                    <div className="flex justify-between font-semibold text-gray-800 mb-1 bg-gray-50 p-1 rounded"><span>סה"כ דיור חודשי (כולל בלאי):</span> <span>{formatILS(results.monthlyHousingCostStart)}</span></div>
+                                                    <div className="flex justify-between text-gray-400"><span>(מתוכם משכנתא בלבד):</span> <span>({formatILS(results.monthlyMortgage)})</span></div>
+                                                    <div className="flex justify-between"><span>שווי נכס עתידי:</span> <span>{formatILS(results.futurePropertyValue)}</span></div>
+                                                    <div className="flex justify-between text-red-400"><span>יתרת משכנתא:</span> <span>-{formatILS(results.remainingLoanBalance)}</span></div>
+                                                    <div className="flex justify-between text-red-400"><span>הוצאות מכירה:</span> <span>-{formatILS(results.sellingExpenses)}</span></div>
+                                                </div>
+                                            } />
+                                            <ResultCard title="מסלול שכירות" value={formatILS(results.rentNetWorth)} subtext="שווי תיק ההשקעות הכולל (הון עצמי + תיק צדדי) נטו" isWinner={results.rentNetWorth > results.buyNetWorth} icon={TrendingUp} alertContent={results.portfolioHitZeroMonth ? `אזהרה: בחודש ${results.portfolioHitZeroMonth} תיק ההשקעות התרוקן.` : null} bottomContent={
+                                                <div className="text-xs space-y-1 text-gray-500 pt-3 border-t">
+                                                    <div className="flex justify-between font-semibold text-gray-800 mb-1 bg-gray-50 p-1 rounded">
+                                                        <span>שכירות חודשית ממוצעת:</span>
+                                                        <span>{formatILS(inputs.analysisYears > 0 ? results.totalSunkRent / (inputs.analysisYears * 12) : 0)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between"><span>סך התיק ברוטו:</span> <span>{formatILS(results.rentNetWorth + results.capitalGainsTax)}</span></div>
+                                                    <div className="flex justify-between text-red-400"><span>מס רווחי הון משוער:</span> <span>-{formatILS(results.capitalGainsTax)}</span></div>
+                                                </div>
+                                            } />
+                                        </div>
+
                                         <div className="flex justify-between text-sm mb-1 font-mono"><span className="text-blue-600 font-bold">{formatILS(results.buyNetWorth)}</span><span className="text-purple-600 font-bold">{formatILS(results.rentNetWorth)}</span></div>
                                         {renderProgressBar(results.buyNetWorth, results.rentNetWorth)}
                                         <p className="mt-4 text-center font-medium text-gray-700">ההפרש לטובת {results.buyNetWorth > results.rentNetWorth ? 'קניה' : 'השכירות'}: <span className="text-xl mr-2 font-bold text-green-600">{formatILS(results.diffNetWorth)}</span></p>
                                     </div>
 
-                                    {/* Monthly Premium Section */}
-                                    <div className={`mt-6 p-4 rounded-xl border-l-4 ${isRentWinner ? 'bg-red-50 border-red-500' : 'bg-green-50 border-green-500'} shadow-sm`}>
-                                        <h3 className="text-lg font-bold flex items-center">
-                                            {isRentWinner ? (
-                                                <>
-                                                    <DollarSign className="ml-2 text-red-600" /> 
-                                                    המחיר הכלכלי: "פרמיית הבעלות"
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <TrendingUp className="ml-2 text-green-600" />
-                                                    הרווח הכלכלי החודשי בקנייה
-                                                </>
-                                            )}
-                                        </h3>
-                                        <div className="flex items-baseline mt-2">
-                                            <span className={`text-3xl font-bold ${isRentWinner ? 'text-red-700' : 'text-green-700'} ml-2`}>
-                                                {formatILS(monthlyPremium)}
-                                            </span>
-                                            <span className="text-gray-600">לחודש (בממוצע לאורך התקופה)</span>
+                                    {/* Profit Source Breakdown (Restored from v29 style) */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                            <h3 className="font-bold text-indigo-900 mb-2 flex items-center"><Scale className="ml-2" size={16}/> מאיפה הכסף? (קנייה)</h3>
+                                            <div className="text-sm space-y-1">
+                                                <div className="flex justify-between"><span>עליית ערך נכס:</span> <span className="font-bold text-green-600">+{formatILS(results.futurePropertyValue - inputs.propertyPrice)}</span></div>
+                                                <div className="flex justify-between"><span>רווח על תיק צדדי:</span> <span className="font-bold text-green-600">+{formatILS(Math.max(0, results.buyerSidePortfolioGross - loanDetails.buyerStartingLiquid))}</span></div>
+                                            </div>
                                         </div>
-                                        <p className="text-sm text-gray-600 mt-2">
-                                            {isRentWinner 
-                                                ? "משמעות: בכל חודש שבו בחרתם לגור בדירה בבעלותכם במקום לשכור ולהשקיע, 'שילמתם' בפועל את הסכום הזה מתוך ההון העתידי שלכם."
-                                                : "משמעות: בכל חודש, ההחלטה לקנות דירה מגדילה את ההון העתידי שלכם בסכום זה בהשוואה לחלופת השכירות."}
-                                        </p>
+                                        <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
+                                            <h3 className="font-bold text-purple-900 mb-2 flex items-center"><TrendingUp className="ml-2" size={16}/> מאיפה הכסף? (שכירות)</h3>
+                                            <div className="text-sm space-y-1">
+                                                 <div className="flex justify-between"><span>רווח הון כולל:</span> <span className="font-bold text-green-600">+{formatILS(Math.max(0, results.renterPortfolioGross - loanDetails.renterStartingLiquid))}</span></div>
+                                                 <div className="text-xs text-gray-500 mt-1">מבוסס על ריבית דריבית בשוק ההון</div>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div className="flex justify-end mt-4">
-                                        <button onClick={() => setActiveTab(2)} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center transition-colors shadow-lg">שלב הבא: אופטימיזציית הון עצמי <ArrowRightLeft className="mr-2" size={18} /></button>
+                                    {/* Sunk Cost Analysis (Restored) */}
+                                    <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl flex flex-col">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h2 className="text-lg font-bold text-orange-900">ניתוח כסף אבוד (Sunk Costs)</h2>
+                                            <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">עלויות שלא חוזרות</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-8 text-sm">
+                                            <div>
+                                                <div className="font-bold border-b border-orange-200 mb-2 pb-1 text-orange-800">מסלול קניה</div>
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between"><span>ריבית משכנתא:</span> <span>{formatILS(results.breakdownBuy.interest)}</span></div>
+                                                    <div className="flex justify-between"><span>פחת ותחזוקה:</span> <span>{formatILS(results.breakdownBuy.maintenance)}</span></div>
+                                                    <div className="flex justify-between"><span>מס/עו"ד/שיפוץ:</span> <span>{formatILS(results.breakdownBuy.purchaseTax + results.breakdownBuy.buyingMisc + results.breakdownBuy.brokerage + results.breakdownBuy.renovation)}</span></div>
+                                                    <div className="flex justify-between font-bold pt-1 border-t border-orange-200 mt-1"><span>סה"כ אבוד:</span> <span>{formatILS(results.totalSunkBuy)}</span></div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="font-bold border-b border-orange-200 mb-2 pb-1 text-orange-800">מסלול שכירות</div>
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between"><span>שכירות מצטברת:</span> <span>{formatILS(results.breakdownRent.rent)}</span></div>
+                                                    <div className="flex justify-between opacity-0"><span>.</span><span>.</span></div>
+                                                    <div className="flex justify-between opacity-0"><span>.</span><span>.</span></div>
+                                                    <div className="flex justify-between font-bold pt-1 border-t border-orange-200 mt-1"><span>סה"כ אבוד:</span> <span>{formatILS(results.totalSunkRent)}</span></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className={`mt-2 p-4 rounded-xl border-l-4 ${profile.isRentWinner ? 'bg-red-50 border-red-500' : 'bg-green-50 border-green-500'} shadow-sm`}>
+                                        <h3 className="text-lg font-bold flex items-center">{profile.isRentWinner ? 'עלות כלכלית משוקללת לבעלות' : 'רווח חודשי משוקלל בקנייה'}</h3>
+                                        <div className="flex items-baseline mt-2"><span className={`text-3xl font-bold ${profile.isRentWinner ? 'text-red-700' : 'text-green-700'} ml-2`}>{formatILS(monthlyPremium)}</span><span className="text-gray-600">לחודש</span></div>
                                     </div>
                                 </div>
                             </div>
                         )}
+                        
+                        {!isZeroState && activeTab === 5 && (
+                             <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
+                                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                                    <div>
+                                        <h2 className="text-2xl font-bold mb-2 flex items-center"><Scale className="ml-2 text-blue-500" /> פרופיל וחוסן פיננסי</h2>
+                                        <p className="text-sm text-gray-500">ניתוח מעמיק של ההשפעה הכלכלית והפסיכולוגית של ההחלטה.</p>
+                                    </div>
+                                    <button onClick={triggerRefresh} className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-bold bg-blue-50 px-4 py-2 rounded-full transition-all">
+                                        <RefreshCcw className={`ml-2 ${isRefreshing ? 'animate-spin-slow' : ''}`} size={16} /> רענן ניתוח
+                                    </button>
+                                </div>
+
+                                {/* Psychological Metrics Row */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <InsightCard 
+                                        title="מדד העוגן (Anchor Score)"
+                                        icon={ShieldCheck}
+                                        colorClass="bg-gradient-freedom"
+                                        value={profile.anchorScore + "/100"}
+                                        subtext="עד כמה מצבך יציב בפני זעזועים? ציון גבוה מעיד על עמידות כלכלית ונפשית."
+                                        footer={profile.anchorScore > 70 ? "מצב מצוין: יש לך גם נכסים וגם נזילות." : "שים לב: ייתכן ואתה חשוף מדי לשינויי שוק."}
+                                    />
+                                    <InsightCard 
+                                        title="יעילות חיסכון כפוי"
+                                        icon={Target}
+                                        colorClass="bg-gradient-return"
+                                        value={Math.round(profile.forcedSavings) + "%"}
+                                        subtext="אחוז מתשלום המשכנתא שהולך לכיס שלך (קרן) ולא לבנק (ריבית)."
+                                        footer="המשכנתא היא למעשה תוכנית חיסכון שאי אפשר לשבור בקלות."
+                                    />
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+                                     <InsightCard 
+                                        title="פרמיית השליטה"
+                                        icon={Heart}
+                                        colorClass="bg-gradient-stress"
+                                        value={profile.controlPremium > 0 ? formatILS(profile.controlPremium) : "ללא עלות"}
+                                        subtext="המחיר החודשי שאתה משלם (מעבר לשכירות) עבור התחושה ש'אף אחד לא יזיז אותי'."
+                                        footer="האם החופש לקדוח בקיר שווה את הסכום הזה בחודש?"
+                                    />
+                                     <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h3 className="font-bold text-gray-700 mb-2">מבחן השינה (The Sleep Test)</h3>
+                                        <div className="text-sm space-y-2">
+                                            <div className="flex justify-between">
+                                                <span>פחד משינויי ריבית:</span>
+                                                <span className="font-bold text-red-500">גבוה (משכנתא)</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>פחד מנפילות בורסה:</span>
+                                                <span className="font-bold text-orange-500">בינוני (תיק)</span>
+                                            </div>
+                                            <p className="text-xs text-gray-400 mt-2 pt-2 border-t">המלצה: בחר במסלול שהכי פחות יפריע לך לישון בלילה, גם אם הוא עולה קצת יותר.</p>
+                                        </div>
+                                     </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                        <div className="text-gray-500 text-sm mb-1">עומס דיור (כולל הכנסת תיק)</div>
+                                        <div className={`text-3xl font-bold ${profile.dtiBuyEffective !== null && profile.dtiBuyEffective > profile.safeDTI ? 'text-red-600' : 'text-green-600'}`}>{profile.dtiBuyEffective === null ? '---' : `${Math.round(profile.dtiBuyEffective*100)}%`}</div>
+                                        <div className="text-xs text-gray-400 mt-2">יעד בטיחות: עד {Math.round(profile.safeDTI*100)}%</div>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                        <div className="text-gray-500 text-sm mb-1">חודשי כרית נזילות (בקנייה)</div>
+                                        <div className={`text-3xl font-bold ${profile.emergencyMonthsBuy !== null && profile.targetMonths > 0 && profile.emergencyMonthsBuy < profile.targetMonths ? 'text-red-600' : 'text-green-600'}`}>{profile.emergencyMonthsBuy === null ? '---' : `${Math.floor(profile.emergencyMonthsBuy)} חודשים`}</div>
+                                        <div className="text-xs text-gray-400 mt-2">יעד מומלץ: {profile.targetMonths || 0} חודשים</div>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                        <div className="text-gray-500 text-sm mb-1">הכנסה חודשית מהתיק</div>
+                                        <div className="text-3xl font-bold text-blue-600">{formatILS(profile.passiveIncome)}</div>
+                                        <div className="text-xs text-gray-400 mt-2">מגדילה את הנטו ל-{formatILS(profile.effectiveTotalIncome)}</div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-8 pt-8 border-t border-gray-200">
+                                    <h3 className="font-bold text-gray-700 mb-4 flex items-center"><RotateCcw className="ml-2 text-blue-500"/>נקודת איזון (מתי קנייה משתלמת?)</h3>
+                                    {results.breakEvenYear ? (
+                                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
+                                            <div className="text-3xl font-bold text-blue-700">שנה {results.breakEvenYear}</div>
+                                            <p className="text-sm text-gray-600 mt-1">בשנה זו, השווי הנקי בקנייה עוקף לראשונה את השכירות.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-center">
+                                            <div className="text-xl font-bold text-gray-500">לא בטווח הבדיקה</div>
+                                            <p className="text-sm text-gray-500 mt-1">בטווח של {inputs.analysisYears} שנים, השכירות נשארת עדיפה כלכלית.</p>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="mt-8">
+                                    <h3 className="font-bold text-gray-700 mb-4 flex items-center"><Wind className="ml-2 text-gray-400"/> ניתוח רגישות (Tornado Chart)</h3>
+                                    <div className="space-y-3">
+                                        {sensitivity.map((s) => {
+                                            const maxImpact = sensitivity[0].impact || 1;
+                                            const w = Math.max(5, Math.round((s.impact / maxImpact) * 100));
+                                            return (
+                                                <div key={s.key}>
+                                                    <div className="flex justify-between text-xs mb-1 px-1">
+                                                        <span className="font-bold text-gray-700">{s.label} <span className="font-normal text-gray-400">(±{s.delta}{s.unit})</span></span>
+                                                        <span className="text-gray-500">השפעה: {formatILS(s.impact)}</span>
+                                                    </div>
+                                                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-blue-400 rounded-full" style={{ width: `${w}%` }}></div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                             </div>
+                        )}
+                        
+                        {/* --- TAB 6: FRIEND ADVICE --- */}
+                        {!isZeroState && activeTab === 6 && (
+                            <div className="animate-in fade-in duration-500 max-w-4xl mx-auto space-y-6">
+                                <div className="bg-gradient-friend text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
+                                    <Crown className="absolute left-4 top-4 opacity-20" size={120} />
+                                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                        <div>
+                                            <h2 className="text-2xl font-bold">{friendAdvice.title}</h2>
+                                            <p className="text-sm opacity-80 mt-1">הטאב הזה לא מחליף את המודל - הוא מתרגם אותו לשיחה של חבר, עם ספים ותנאים.</p>
+                                        </div>
+
+                                        <div className="bg-white/10 p-1 rounded-xl flex w-fit">
+                                            <button onClick={() => setFriendTone('soft')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${friendTone === 'soft' ? 'bg-white text-gray-900' : 'text-white/80 hover:text-white'}`}>עדין</button>
+                                            <button onClick={() => setFriendTone('sharp')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${friendTone === 'sharp' ? 'bg-white text-gray-900' : 'text-white/80 hover:text-white'}`}>חד</button>
+                                            <button onClick={() => setFriendTone('hard')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${friendTone === 'hard' ? 'bg-white text-gray-900' : 'text-white/80 hover:text-white'}`}>קשוח</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                    <div className="text-sm text-gray-600 mb-2">{friendAdvice.opener}</div>
+                                    <div className="text-xl font-black text-gray-900">{friendAdvice.verdict}</div>
+                                    <div className="flex flex-wrap gap-2 mt-4">
+                                        {friendAdvice.badges.map((b, i) => (
+                                            <span key={i} className={`text-xs font-bold px-3 py-1 rounded-full border ${b.color === 'green' ? 'bg-green-50 text-green-700 border-green-200' : b.color === 'yellow' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{b.label}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                        <h3 className="font-bold text-gray-900 mb-3 flex items-center"><Brain className="ml-2 text-blue-500" size={18}/> ההיגיון הכלכלי</h3>
+                                        <ul className="space-y-2 text-sm text-gray-700 list-disc pr-4">{friendAdvice.reasons.map((r, idx) => (<li key={idx}>{r}</li>))}</ul>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                        <h3 className="font-bold text-gray-900 mb-3 flex items-center"><Heart className="ml-2 text-red-500" size={18}/> הפסיכולוגיה והרגש</h3>
+                                        <ul className="space-y-2 text-sm text-gray-700 list-disc pr-4">
+                                            {profile.forcedSavings > 40 && <li>המשכנתא היא מנגנון "חיסכון כפוי" מעולה (כ-{Math.round(profile.forcedSavings)}% מהתשלום נשמר אצלך).</li>}
+                                            {profile.controlPremium > 0 && <li>תחושת השליטה והביטחון בנכס שווה לך כ-{formatILS(profile.controlPremium)} בחודש.</li>}
+                                            <li>היציבות הנפשית מול חוסר הוודאות של שוק השכירות שווה פרמיה.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div className="mt-6 bg-blue-50 p-6 rounded-2xl border border-blue-100">
+                                    <h3 className="font-bold text-blue-900 mb-3">מה עושים מחר בבוקר?</h3>
+                                    <ul className="space-y-2 text-sm text-blue-800 list-decimal pr-4">{friendAdvice.actions.map((a, idx) => (<li key={idx}>{a}</li>))}</ul>
+                                </div>
+                            </div>
+                        )}
                         {/* Tab 2, 3, 4 logic remains mostly same... */}
-                        {activeTab === 2 && (
+                        {!isZeroState && activeTab === 2 && (
                             <div className="max-w-3xl mx-auto space-y-6 animate-in slide-in-from-right-4 duration-500">
                                 <div className="bg-white p-8 rounded-xl shadow-sm text-center">
                                     <h2 className="text-2xl font-bold mb-2">כמה הון עצמי להביא?</h2>
                                     <p className="text-gray-500 mb-8">האם להשתמש בכל החסכונות או לקחת משכנתא גדולה יותר?</p>
-                                    {(results.purchaseTaxAmount + results.buyingMiscAmount + results.brokerageAmount) > 0 && (<div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm mb-6 inline-block mx-auto border border-red-100">שים לב: <strong>{formatILS(results.purchaseTaxAmount + results.buyingMiscAmount + results.brokerageAmount)}</strong> מההון העצמי הולכים להוצאות רכישה (מס, עו"ד, תיווך וכו').</div>)}
+                                    {(results.breakdownBuy.purchaseTax + results.breakdownBuy.buyingMisc + results.breakdownBuy.brokerage) > 0 && (<div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm mb-6 inline-block mx-auto border border-red-100">שים לב: <strong>{formatILS(results.breakdownBuy.purchaseTax + results.breakdownBuy.buyingMisc + results.breakdownBuy.brokerage)}</strong> מההון העצמי הולכים להוצאות רכישה (מס, עו"ד, תיווך וכו').</div>)}
                                     <div className="mb-10 px-4">
                                         <label className="block text-lg font-medium mb-4">LTV (מימון משווי נכס): <span className="text-blue-600 font-bold text-2xl">{Math.round((loanDetails.loanUsedForProperty / inputs.propertyPrice) * 100)}%</span></label>
                                         <input type="range" min="25" max="75" step="5" value={Math.round((loanDetails.loanUsedForProperty / inputs.propertyPrice) * 100) || 70} onChange={(e) => { const percent = parseInt(e.target.value); const targetLoanForProp = inputs.propertyPrice * (percent / 100); const targetEquityForProp = inputs.propertyPrice - targetLoanForProp; const purchaseTaxAmount = inputs.propertyPrice * (inputs.purchaseTaxRate / 100); const buyingMiscAmount = inputs.buyingMiscAmount; const brokerageAmount = inputs.propertyPrice * (inputs.brokerageRate / 100) * (1 + inputs.vatRate / 100); const targetEquityUsed = targetEquityForProp + purchaseTaxAmount + buyingMiscAmount + brokerageAmount; handleInputChange('equity', Math.max(0, targetEquityUsed)); }} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
@@ -905,7 +901,7 @@
                                 </div>
                             </div>
                         )}
-                        {activeTab === 3 && (
+                        {!isZeroState && activeTab === 3 && (
                             <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
                                 <div className="bg-blue-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden flex flex-col justify-between items-start">
                                     <div className="relative z-10 w-full flex justify-between items-start">
@@ -987,7 +983,7 @@
                                 </div>
                             </div>
                         )}
-                        {activeTab === 4 && (
+                        {!isZeroState && activeTab === 4 && (
                             <div className="animate-in fade-in duration-500">
                                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
                                     <div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold text-gray-800 flex items-center"><Table2 className="ml-2 text-blue-500"/> טבלת התפתחות שנתית</h2><span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">כל הסכומים בש"ח</span></div>
@@ -1023,130 +1019,6 @@
                                             </tbody>
                                         </table>
                                     </div>
-                                </div>
-                            </div>
-                        )}
-                        {/* --- TAB 5: INSIGHTS & RESILIENCE --- */}
-                        {activeTab === 5 && (
-                            <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
-                                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                                    <h2 className="text-2xl font-bold mb-2 flex items-center"><Scale className="ml-2 text-blue-500" /> פרופיל וחוסן פיננסי</h2>
-                                    <p className="text-sm text-gray-500">כאן אתה רואה אם ההחלטה "נכונה על הנייר" גם עומדת במבחן תזרים, נזילות וסטראס.</p>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                                        <div className="text-gray-500 text-sm mb-1">עומס דיור (כולל הכנסת תיק)</div>
-                                        <div className={`text-3xl font-bold ${profile.dtiBuy !== null && profile.dtiBuy > profile.safeDTI ? 'text-red-600' : 'text-green-600'}`}>{profile.dtiBuy === null ? '---' : `${Math.round(profile.dtiBuy*100)}%`}</div>
-                                        <div className="text-xs text-gray-400 mt-2">יעד בטיחות: עד {Math.round(profile.safeDTI*100)}%</div>
-                                    </div>
-                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                                        <div className="text-gray-500 text-sm mb-1">חודשי כרית נזילות (בקנייה)</div>
-                                        <div className={`text-3xl font-bold ${profile.emergencyMonthsBuy !== null && profile.targetMonths > 0 && profile.emergencyMonthsBuy < profile.targetMonths ? 'text-red-600' : 'text-green-600'}`}>{profile.emergencyMonthsBuy === null ? '---' : `${Math.floor(profile.emergencyMonthsBuy)} חודשים`}</div>
-                                        <div className="text-xs text-gray-400 mt-2">יעד מומלץ: {profile.targetMonths || 0} חודשים</div>
-                                    </div>
-                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                                        <div className="text-gray-500 text-sm mb-1">הכנסה חודשית מהתיק</div>
-                                        <div className="text-3xl font-bold text-blue-600">{formatILS(profile.passiveIncome)}</div>
-                                        <div className="text-xs text-gray-400 mt-2">מגדילה את הנטו ל-{formatILS(profile.effectiveTotalIncome)}</div>
-                                    </div>
-                                </div>
-                                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                                    <h3 className="text-lg font-bold mb-3">מנוע המלצה (אינטליגנטי)</h3>
-                                    <div className={`p-4 rounded-xl border-l-4 ${profile.stance.includes("קנייה") ? 'bg-blue-50 border-blue-500' : (profile.stance.includes("שכירות") ? 'bg-purple-50 border-purple-500' : 'bg-gray-50 border-gray-500')}`}>
-                                        <div className="text-xl font-bold text-gray-900">{profile.stance}</div>
-                                        <ul className="mt-3 space-y-2 text-sm text-gray-700">{profile.guidance.map((g, i) => (<li key={i} className="flex items-start"><span className="mt-1 ml-2 w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span><span>{g}</span></li>))}</ul>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 text-sm">
-                                        <div className="bg-green-50 border border-green-100 p-4 rounded-lg">
-                                            <div className="font-bold text-green-800 mb-1">עודף חודשי בקנייה</div>
-                                            <div className={`text-lg font-bold ${profile.surplusBuy < 0 ? 'text-red-700' : 'text-green-700'}`}>{formatILS(profile.surplusBuy)}</div>
-                                            <div className="text-xs text-gray-500 mt-1">כולל הכנסה פסיבית מהתיק</div>
-                                        </div>
-                                        <div className="bg-purple-50 border border-purple-100 p-4 rounded-lg">
-                                            <div className="font-bold text-purple-800 mb-1">עודף חודשי בשכירות</div>
-                                            <div className={`text-lg font-bold ${profile.surplusRent < 0 ? 'text-red-700' : 'text-purple-700'}`}>{formatILS(profile.surplusRent)}</div>
-                                            <div className="text-xs text-gray-500 mt-1">כולל הכנסה פסיבית מהתיק</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                {/* --- Metrics: Financial Freedom etc --- */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                                    {/* Metric 1: Financial Freedom */}
-                                    <InsightCard title="מדד החופש הכלכלי" icon={Unlock} colorClass="bg-gradient-freedom" value={<div className="flex flex-col"><div className="flex justify-between items-center text-sm font-normal text-gray-600 mb-1"><span>קנייה (חודשי שרידות):</span><span className="font-bold">{buyerFreedomMonths} חודשים</span></div><div className="w-full bg-gray-200 rounded-full h-2 mb-3"><div className="bg-green-600 h-2 rounded-full" style={{ width: `${Math.min(100, (buyerFreedomMonths/36)*100)}%` }}></div></div><div className="flex justify-between items-center text-sm font-normal text-gray-600 mb-1"><span>שכירות (חודשי שרידות):</span><span className="font-bold">{renterFreedomMonths} חודשים</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-purple-600 h-2 rounded-full" style={{ width: `${Math.min(100, (renterFreedomMonths/36)*100)}%` }}></div></div></div>} subtext="כמה זמן תוכלו להתקיים מההון הנזיל בלבד? בקנייה אתם עשירים יותר, אך הנזילות נמוכה." footer={buyerFreedomMonths < 3 ? "אזהרה: נזילות נמוכה מאוד בקנייה!" : "בקנייה, רוב הכסף 'כלוא' בקירות."} />
-                                    {/* Metric 2: Point of No Return */}
-                                    <InsightCard title="נקודת האל-חזור" icon={Hourglass} colorClass="bg-gradient-time" value={recoveredEntryYear ? `שנה ${recoveredEntryYear}` : "לא בטווח"} subtext="מתי עליית ערך הדירה מכסה סוף סוף את עלויות הכניסה (מס, עו''ד, שיפוץ)?" footer={recoveredEntryYear ? `לפני שנה ${recoveredEntryYear}, מכירת הדירה תגרור הפסד ריאלי.` : "בטווח הנבחר, עלויות הכניסה עדיין לא כוסו במלואן."} />
-                                    {/* Metric 3: Liquidity Stress Score */}
-                                    <InsightCard title="מדד חנק נזילות" icon={Droplets} colorClass="bg-gradient-stress" value={<div className="flex items-center space-x-4 space-x-reverse"><div className="flex flex-col items-center"><span className={`text-2xl font-bold ${stressScoreBuy > 50 ? 'text-red-600' : 'text-green-600'}`}>{stressScoreBuy}</span><span className="text-xs text-gray-500">קנייה</span></div><div className="h-8 w-px bg-gray-300"></div><div className="flex flex-col items-center"><span className={`text-2xl font-bold ${stressScoreRent > 50 ? 'text-red-600' : 'text-green-600'}`}>{stressScoreRent}</span><span className="text-xs text-gray-500">שכירות</span></div></div>} subtext="ציון סיכון (0-100). האם המשכנתא גדולה על ההכנסה? האם תיק ההשקעות מתרוקן?" footer={stressScoreRent > 80 ? "בשכירות: סכנה גבוהה להתרוקנות התיק!" : stressScoreBuy > 50 ? "בקנייה: המשכנתא חונקת את התזרים." : "מצב הנזילות נראה יציב."} />
-                                    {/* Metric 4: Optionality Score */}
-                                    <InsightCard title="מדד הגמישות" icon={Compass} colorClass="bg-gradient-return" value={<div className="flex items-center gap-2"><span className="text-sm font-bold text-gray-600">קנייה:</span><div className="flex">{[...Array(5)].map((_, i) => <div key={i} className={`w-3 h-3 rounded-full mx-0.5 ${i < optionalityBuy/20 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>)}</div><span className="mr-4 text-sm font-bold text-gray-600">שכירות:</span><div className="flex">{[...Array(5)].map((_, i) => <div key={i} className={`w-3 h-3 rounded-full mx-0.5 ${i < optionalityRent/20 ? 'bg-purple-600' : 'bg-gray-200'}`}></div>)}</div></div>} subtext="היכולת לשנות מסלול חיים (מעבר עיר, שינוי קריירה) ללא קנסות כלכליים כבדים." footer="שכירות מעניקה גמישות מקסימלית. קנייה היא 'חתונה קתולית' עם הנכס והבנק." />
-                                </div>
-                                <div className="mt-8 pt-8 border-t border-gray-200">
-                                    <h3 className="font-bold text-gray-700 mb-4 flex items-center"><RotateCcw className="ml-2 text-blue-500"/>נקודת איזון (מתי קנייה משתלמת?)</h3>
-                                    {results.breakEvenYear ? (
-                                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
-                                            <div className="text-3xl font-bold text-blue-700">שנה {results.breakEvenYear}</div>
-                                            <p className="text-sm text-gray-600 mt-1">בשנה זו, השווי הנקי בקנייה עוקף לראשונה את השכירות.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-center">
-                                            <div className="text-xl font-bold text-gray-500">לא בטווח הבדיקה</div>
-                                            <p className="text-sm text-gray-500 mt-1">בטווח של {inputs.analysisYears} שנים, השכירות נשארת עדיפה כלכלית.</p>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="mt-8">
-                                    <h3 className="font-bold text-gray-700 mb-4 flex items-center"><Wind className="ml-2 text-gray-400"/> ניתוח רגישות (Tornado Chart)</h3>
-                                    <div className="space-y-3">
-                                        {sensitivity.map((s) => {
-                                            const maxImpact = sensitivity[0].impact || 1;
-                                            const w = Math.max(5, Math.round((s.impact / maxImpact) * 100));
-                                            return (
-                                                <div key={s.key}>
-                                                    <div className="flex justify-between text-xs mb-1 px-1">
-                                                        <span className="font-bold text-gray-700">{s.label} <span className="font-normal text-gray-400">(±{s.delta}{s.unit})</span></span>
-                                                        <span className="text-gray-500">השפעה: {formatILS(s.impact)}</span>
-                                                    </div>
-                                                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-blue-400 rounded-full" style={{ width: `${w}%` }}></div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {/* --- TAB 6: FRIEND ADVICE --- */}
-                        {activeTab === 6 && (
-                            <div className="animate-in fade-in duration-500 max-w-4xl mx-auto space-y-6">
-                                <div className="bg-gradient-friend text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
-                                    <Crown className="absolute left-4 top-4 opacity-20" size={120} />
-                                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                        <div>
-                                            <h2 className="text-2xl font-bold">{friendAdvice.title}</h2>
-                                            <p className="text-sm opacity-80 mt-1">הטאב הזה לא מחליף את המודל - הוא מתרגם אותו לשיחה של חבר, עם ספים ותנאים.</p>
-                                        </div>
-
-                                        <div className="bg-white/10 p-1 rounded-xl flex w-fit">
-                                            <button onClick={() => setFriendTone('soft')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${friendTone === 'soft' ? 'bg-white text-gray-900' : 'text-white/80 hover:text-white'}`}>עדין</button>
-                                            <button onClick={() => setFriendTone('sharp')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${friendTone === 'sharp' ? 'bg-white text-gray-900' : 'text-white/80 hover:text-white'}`}>חד</button>
-                                            <button onClick={() => setFriendTone('hard')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${friendTone === 'hard' ? 'bg-white text-gray-900' : 'text-white/80 hover:text-white'}`}>קשוח</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                    <div className="text-sm text-gray-600 mb-2">{friendAdvice.opener}</div>
-                                    <div className="text-xl font-black text-gray-900">{friendAdvice.verdict}</div>
-                                    <div className="flex flex-wrap gap-2 mt-4">
-                                        {friendAdvice.badges.map((b, i) => (
-                                            <span key={i} className={`text-xs font-bold px-3 py-1 rounded-full border ${b.color === 'green' ? 'bg-green-50 text-green-700 border-green-200' : b.color === 'yellow' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{b.label}</span>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><h3 className="font-bold text-gray-900 mb-3">למה אני אומר את זה</h3><ol className="space-y-2 text-sm text-gray-700 list-decimal pr-4">{friendAdvice.reasons.map((r, idx) => (<li key={idx}>{r}</li>))}</ol></div>
-                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><h3 className="font-bold text-gray-900 mb-3">מה עושים מחר בבוקר</h3><ul className="space-y-2 text-sm text-gray-700 list-disc pr-4">{friendAdvice.actions.map((a, idx) => (<li key={idx}>{a}</li>))}</ul></div>
-                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><h3 className="font-bold text-gray-900 mb-3">מה יכול לשנות את ההמלצה</h3><ul className="space-y-2 text-sm text-gray-700 list-disc pr-4">{friendAdvice.conditions.map((c, idx) => (<li key={idx}>{c}</li>))}</ul><div className="mt-4 p-3 rounded-xl bg-gray-50 border border-gray-100 text-xs text-gray-600">טיפ: תראה בזה "כללי משחק". אם לא עומדים בהם - לא קונים רק כי "בא".</div></div>
                                 </div>
                             </div>
                         )}
